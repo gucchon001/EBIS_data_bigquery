@@ -1,0 +1,122 @@
+---
+description: Seleniumを使用したブラウザ自動化のルール
+globs: **/*browser.py,**/*selenium*.py,**/webdriver*.py
+alwaysApply: false
+---
+## セレクタ管理
+- セレクタは `config/selectors.csv` で一元管理する
+- セレクタの変更はCSVファイルのみで行い、コード内にハードコーディングしない
+- セレクタ情報には、グループ名、要素名、セレクタタイプ、セレクタ値、説明を含める
+- セレクタが見つからない場合のフォールバック処理を実装する
+
+## ブラウザ操作
+- ブラウザ操作は `sBrowser` クラスのメソッドを使用する
+- 直接 WebDriver のメソッドを呼び出すのではなく、ラッパーメソッドを使用する
+- 新しいウィンドウへの切り替えは `switch_to_new_window` メソッドを使用する
+
+# 安定的な要素クリックのためのルール
+
+以下は、Selenium を使用して安定的に要素をクリックする際の推奨ルールです。これらの手順を統一したラッパーメソッド内に実装することで、通常のクリックが失敗した場合に自動的にフォールバック手段が発動し、動作の安定性が向上します。
+
+1. **明示的な待機の利用**  
+   - `WebDriverWait` を利用して、対象要素が存在しかつクリック可能な状態であることを確認します。  
+   - 例:  
+     ```python
+     from selenium.webdriver.support.ui import WebDriverWait
+     from selenium.webdriver.support import expected_conditions as EC
+     from selenium.webdriver.common.by import By
+
+     element = WebDriverWait(driver, timeout).until(
+         EC.element_to_be_clickable((By.CSS_SELECTOR, "your-selector"))
+     )
+     ```
+
+2. **スクロール処理の併用**  
+   - 要素が画面外にある場合、`driver.execute_script()` を利用して要素までスクロールさせ、表示状態にします。  
+   - 例:  
+     ```python
+     driver.execute_script("arguments[0].scrollIntoView(true);", element)
+     ```
+
+3. **通常のクリック操作**  
+   - 最初に、`element.click()` による通常のクリック処理を試みます。  
+   - この際、クリック前後の操作内容をログに記録し、必要であればスクリーンショットを取得します。  
+   - 例:  
+     ```python
+     try:
+         element.click()
+     except Exception as e:
+         logger.error(f"通常のクリック操作に失敗: {e}")
+         # フォールバックへ
+     ```
+
+4. **フォールバックとしてのJavaScriptクリック**  
+   - 通常のクリックで失敗（例: 要素が重なっている、もしくはクリック不可能と判断された場合など）した場合、`driver.execute_script("arguments[0].click();", element)` を実行してクリック操作を試みます。  
+   - 例:  
+     ```python
+     try:
+         driver.execute_script("arguments[0].click();", element)
+     except Exception as e:
+         logger.error(f"JavaScriptによるクリック操作に失敗: {e}")
+     ```
+
+5. **エラーの適切なハンドリング**  
+   - クリック操作で例外が発生した場合、詳細なエラーメッセージとともに、必要に応じスクリーンショットを取得し、エラー内容をロギングします。  
+   - 例:  
+     ```python
+     except Exception as e:
+         logger.error(f"クリック操作全般に失敗: {e}")
+         # スクリーンショットの取得処理を追加
+     ```
+
+これらの手順を組み合わせた統一メソッドを実装することで、Selenium のクリック操作がより安定的に動作し、さまざまな環境下での問題発生を低減できます。
+
+## 待機戦略
+- 明示的な待機（WebDriverWait）を使用し、固定のsleep時間は最小限にする
+- 要素が見つからない場合は適切なエラーメッセージをログに記録する
+- タイムアウト値はコンストラクタで設定し、必要に応じてメソッド呼び出し時に上書きする
+
+## スクリーンショット
+- 重要な操作の前後でスクリーンショットを取得する
+- スクリーンショットのファイル名は操作内容と状態を明確に示す（例: `login_before.png`, `login_after.png`）
+- エラー発生時には必ずスクリーンショットを取得し、エラー状況を記録する
+- スクリーンショットは日時ベースのディレクトリに保存し、実行ごとに整理する
+
+## エラー処理
+- Selenium関連の例外（TimeoutException, NoSuchElementException など）を適切に捕捉する
+- エラー発生時にはスクリーンショットとHTMLソースを保存し、詳細な分析を可能にする
+- 要素が見つからない場合や操作が失敗した場合は、ログに詳細な情報を記録する
+- 可能な限り代替手段（JavaScriptでのクリックなど）を試みる
+
+## ヘッドレスモード
+- ヘッドレスモードとブラウザ表示モードの両方をサポートする
+- ヘッドレスモードの制御は、@settings.ini [BROWSER]で行う
+- ヘッドレスモードでも正確にスクリーンショットを取得できるよう、適切なウィンドウサイズを設定する
+- CI/CD環境ではヘッドレスモードを使用する
+
+## ページ解析
+- ページ内容の解析には BeautifulSoup を使用する
+- 解析結果は構造化されたデータ（辞書）として返す
+- ページタイトル、見出し、エラーメッセージ、メニュー項目などの重要な情報を抽出する
+
+## リソース管理
+- WebDriver は使用後に必ず `quit()` メソッドで終了する
+- 長時間実行するテストでは、定期的にブラウザをリフレッシュしてメモリリークを防ぐ
+
+## デバッグ支援
+- 複雑な操作の前後でHTMLソースを保存し、後で分析できるようにする
+- 操作の各ステップを詳細にログに記録し、問題の特定を容易にする
+
+## ChromeDriverの管理
+- ChromeDriverの自動ダウンロードには `webdriver_manager` パッケージを使用する
+- `ChromeDriverManager().install()` を使用して最新のドライバーを自動的に取得する
+- ドライバーのバージョンはChromeのバージョンと互換性があるものを自動選択する
+- ドライバーのパスを環境変数やハードコードで指定せず、常に `webdriver_manager` を使用する
+
+## セレクタCSVの構成
+- `config/selectors.csv` ファイルは以下の列を含む:
+  - `group`: セレクタのグループ名（例: `porters`, `porters_menu`）
+  - `name`: セレクタの要素名（例: `username`, `login_button`）
+  - `selector_type`: セレクタのタイプ（例: `css`, `xpath`, `id`）
+  - `selector_value`: セレクタの値
+  - `description`: セレクタの説明（日本語可）

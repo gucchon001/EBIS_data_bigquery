@@ -1,0 +1,8 @@
+selenium
+chromedriver-binary
+gspread
+gspread-dataframe
+pandas
+oauth2client
+pyarrow
+webdriver-manager

@@ -1,0 +1,96 @@
+# Virtual Environment
+myenv/
+venv/
+ENV/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Credentials and Config
+json/*.json
+*.env
+config/*.env
+config/*.json
+config/*.pem
+
+# Ensure the parent directory (json/) itself is tracked
+!config/
+
+# Include JSON files starting with "prompt"
+!config/prompt*.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*.sublime-workspace
+*.sublime-project
+
+# OS
+.DS_Store
+Thumbs.db
+*.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Logs and Temp files
+logs/
+*.log
+*.tmp
+*.temp
+*.cache
+
+# Build and Package files
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+bin/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+
+# Hash files
+*.hash
+*.req_hash
+
+# Output files
+*.csv
+*.xlsx
+*.xls
+*.pdf
+output/
+
+# Test cache
+.pytest_cache/
+.coverage
+htmlcov/

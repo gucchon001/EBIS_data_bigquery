@@ -1,0 +1,87 @@
+---
+description: 各ディレクトリの説明
+globs: *
+alwaysApply: true
+---
+# ディレクトリルール
+
+この文書は、プロジェクト全体のディレクトリ構造および実装上のルールを定め、コードの可読性・保守性・再利用性を向上させるためのガイドラインを示します。特に、環境変数や設定ファイル、ファイルパスの取得に関しては、すべてのモジュールで統一された方法（`src/utils/environment.py` の `EnvironmentUtils` クラス）を利用することを義務付けます。
+
+---
+
+## 1. プロジェクトディレクトリのレイアウト 
+
+project/
+├── config/ # 設定ファイル（secrets.env, settings.ini）を配置
+├── data/ # 入力データ・出力データ用のディレクトリ
+├── logs/ # ログファイル出力先のディレクトリ
+├── src/
+│ ├── main.py # エントリーポイント
+│ ├── aggregate_spreadsheet.py# スプレッドシート集計スクリプト
+│ ├── modules/ # ドメイン固有のビジネスロジック
+│ └── utils/ # 共通ユーティリティ
+│ ├── environment.py # 環境変数、設定ファイル、ファイルパス解決のためのユーティリティ
+│ ├── slack_notifier.py # Slack通知機能（環境変数からWebhook URL取得）
+│ └── logging_config.py # 標準ロギング設定
+└── tests/ # テストコード（各モジュールに対応）
+
+## 2. 環境および設定の管理
+
+- **統一された設定アクセス:**  
+  全モジュールにおいて、環境変数や設定ファイル、ファイルパスの取得は必ず `src/utils/environment.py` の `EnvironmentUtils` クラスを通して行います。
+
+- **環境変数のロード:**  
+  - プロセス開始時または初期化時に `EnvironmentUtils.load_env()` を呼び出し、`config/secrets.env` から環境変数をロードすること。
+
+- **環境変数の取得:**  
+  - 環境変数の値は `EnvironmentUtils.get_env_var(var_name, default)` を用いて取得します。値が設定されていない場合、明確なエラーメッセージまたはデフォルト値が適用されます。
+
+- **設定ファイルの利用:**  
+  - 設定ファイル `config/settings.ini` からの値の取得は、`EnvironmentUtils.get_config_file()` および `EnvironmentUtils.get_config_value(section, key, default)` を利用し、シート名、APIキーなどの重要な設定値を一元管理します。
+
+- **ファイルパスの解決:**  
+  - 相対パスは `EnvironmentUtils.resolve_path(path)` により、プロジェクトルート（`EnvironmentUtils.get_project_root()` で取得）を基準とした絶対パスに変換し、一貫したファイルアクセスを保証します。
+
+- **サービスアカウントファイルの取得:**  
+  - Googleスプレッドシートなど、特定のファイルが必要な場合は必ず `EnvironmentUtils.get_service_account_file()` を使用して、環境変数および設定ファイルの情報を元にファイルパスを決定してください。
+
+- **直接ファイル読み込みの禁止:**  
+  - 環境設定ファイルや設定値を直接ファイル操作（例: `open('config/settings.ini')`）で読み込むのは避け、必ず `EnvironmentUtils` の各メソッドを利用すること。
+
+---
+
+## 3. モジュールの規約と一貫性
+
+- **モジュール配置:**  
+  - **src/modules/** 内の各モジュールは、ドメイン固有の機能を提供するためのものであり、共通処理（環境変数のロード、ファイルパス取得など）は必ず `EnvironmentUtils` や他の共通ユーティリティに委譲します。  
+    - 例: `browser.py` や `operations.py` は、直接WebDriver操作やOSレベルのファイル操作を行わず、`EnvironmentUtils` 経由で処理を行います。
+
+- **ユーティリティの利用:**  
+  - **src/utils/environment.py:**  
+    - 環境変数のロード、設定ファイルの読み込み、ファイルパスの解決を一元管理します。  
+  - **src/utils/slack_notifier.py:**  
+    - SlackのWebhook URLは `EnvironmentUtils.get_env_var()` を利用して取得し、統一された通知機能を提供します。
+
+---
+
+## 4. ロギングとテスト
+
+- **ロギング:**  
+  - ログ設定は `src/utils/logging_config.py` に集中管理され、全モジュールでは `get_logger(__name__)` を利用してログ出力を行います。
+
+- **テスト環境:**  
+  - テストコード（`tests/` 内）では、各テスト実行前に `EnvironmentUtils.load_env()` を呼び出して環境設定をロードし、実際の運用環境と同様の状態でテストが実施されるようにします。
+
+---
+
+## 5. メンテナンスと一貫性の確保
+
+- **集中管理:**  
+  - 環境設定やファイルパス解決に関する実装の変更は、必ず `src/utils/environment.py` で行い、各モジュールではそのメソッドを呼び出すのみとします。こうすることで、冗長なコードや設定の不整合を防ぎます。
+
+- **一貫したエラー処理:**  
+  - エラー発生時には、詳細なエラーメッセージを出力し、必要に応じて `SlackNotifier` や `ErrorHandler` を用いて中央集約的なエラー通知を実現します。
+
+---
+
+以上のルールに従うことで、プロジェクト全体の一貫性、可読性、保守性が向上し、環境設定やファイルアクセスに関する修正が容易に全モジュールへ反映されるようになります。

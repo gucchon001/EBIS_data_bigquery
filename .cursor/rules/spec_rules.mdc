@@ -1,0 +1,11 @@
+---
+description: 仕様書の作製・参照ルール
+globs: docs/spec.md
+alwaysApply: false
+---
+# 仕様書(spec.md)がある場合のルール
+pattern: "**/*.py"
+description: "docs/spec.MDファイルに仕様書が存在する場合、常に最新の仕様書を読み取り、それに基づいて実装を行ってください。"
+required:
+  - "docs/spec.MD"
+include: "@file:general.cursor"
