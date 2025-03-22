@@ -1,0 +1,457 @@
+[
+  {
+    "name": "CV名",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "CV時間",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ユーザーID",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ユーザー名",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "売上金額",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "項目1",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "項目2",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "項目3",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "項目4",
+    "type": "INTEGER",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "項目5",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "デバイス",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "潜伏期間",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "潜伏期間_秒",
+    "type": "INTEGER",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "接触回数",
+    "type": "INTEGER",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "直接効果_発生日時",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "直接効果_チャネル種別",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "直接効果_カテゴリ",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "直接効果_広告グループ1",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "直接効果_広告グループ2",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "直接効果_広告ID",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "直接効果_名称",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果2_発生日時",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果2_チャネル種別",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果2_カテゴリ",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果2_広告グループ1",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果2_広告グループ2",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果2_広告ID",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果2_名称",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果3_発生日時",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果3_チャネル種別",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果3_カテゴリ",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果3_広告グループ1",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果3_広告グループ2",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果3_広告ID",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果3_名称",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果4_発生日時",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果4_チャネル種別",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果4_カテゴリ",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果4_広告グループ1",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果4_広告グループ2",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果4_広告ID",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果4_名称",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果5_発生日時",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果5_チャネル種別",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果5_カテゴリ",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果5_広告グループ1",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果5_広告グループ2",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果5_広告ID",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果5_名称",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果6_発生日時",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果6_チャネル種別",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果6_カテゴリ",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果6_広告グループ1",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果6_広告グループ2",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果6_広告ID",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果6_名称",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果7_発生日時",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果7_チャネル種別",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果7_カテゴリ",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果7_広告グループ1",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果7_広告グループ2",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果7_広告ID",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果7_名称",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果8_発生日時",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果8_チャネル種別",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果8_カテゴリ",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果8_広告グループ1",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果8_広告グループ2",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果8_広告ID",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果8_名称",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果9_発生日時",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果9_チャネル種別",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果9_カテゴリ",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果9_広告グループ1",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果9_広告グループ2",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果9_広告ID",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果9_名称",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果10_発生日時",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果10_チャネル種別",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果10_カテゴリ",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果10_広告グループ1",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果10_広告グループ2",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果10_広告ID",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "間接効果10_名称",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "初回接触_発生日時",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "初回接触_チャネル種別",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "初回接触_カテゴリ",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "初回接触_広告グループ1",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "初回接触_広告グループ2",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "初回接触_広告ID",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "初回接触_名称",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  }
+]

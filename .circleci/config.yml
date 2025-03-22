@@ -1,0 +1,29 @@
+version: 2.1
+
+orbs:
+  python: circleci/python@1.5
+
+jobs:
+  build-and-test:
+    docker:
+      - image: cimg/python:3.9
+    steps:
+      - checkout
+      - python/install-packages:
+          pkg-manager: pip
+          packages:
+            - google-cloud-bigquery
+            - google-cloud-storage
+            - pytest
+            - pytest-cov
+            - pytest-mock
+      - run:
+          name: Run tests
+          command: python -m pytest tests/ -v --cov=src
+      - store_test_results:
+          path: test-results
+
+workflows:
+  main:
+    jobs:
+      - build-and-test 

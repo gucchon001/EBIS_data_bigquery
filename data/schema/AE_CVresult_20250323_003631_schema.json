@@ -1,0 +1,457 @@
+[
+  {
+    "name": "CV_",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "CV__",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____ID",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "_____",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "__1",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "__2",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "__3",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "__4",
+    "type": "INTEGER",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "__5",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "______",
+    "type": "INTEGER",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____",
+    "type": "INTEGER",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "_________",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "___________",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "_________",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "___________1",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "___________2",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "_______ID",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "_______",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____2_____",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____2_______",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____2_____",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____2_______1",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____2_______2",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____2___ID",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____2___",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____3_____",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____3_______",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____3_____",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____3_______1",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____3_______2",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____3___ID",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____3___",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____4_____",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____4_______",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____4_____",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____4_______1",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____4_______2",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____4___ID",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____4___",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____5_____",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____5_______",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____5_____",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____5_______1",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____5_______2",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____5___ID",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____5___",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____6_____",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____6_______",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____6_____",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____6_______1",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____6_______2",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____6___ID",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____6___",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____7_____",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____7_______",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____7_____",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____7_______1",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____7_______2",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____7___ID",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____7___",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____8_____",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____8_______",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____8_____",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____8_______1",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____8_______2",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____8___ID",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____8___",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____9_____",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____9_______",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____9_____",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____9_______1",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____9_______2",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____9___ID",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____9___",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____10_____",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____10_______",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____10_____",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____10_______1",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____10_______2",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____10___ID",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "____10___",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "_________",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "___________",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "_________",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "___________1",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "___________2",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "_______ID",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "_______",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  }
+]

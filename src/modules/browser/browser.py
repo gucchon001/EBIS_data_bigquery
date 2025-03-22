@@ -244,11 +244,13 @@ class Browser:
                 raise Exception(f"ChromeDriverのダウンロードに失敗しました: {str(e)}")
             
             # ダウンロード設定
-            download_dir = os.path.join(os.getcwd(), "data")
+            download_dir = env.resolve_path(env.get_config_value("Download", "directory", "data/downloads"))
+            download_dir_str = str(download_dir)  # Path オブジェクトを文字列に変換
             os.makedirs(download_dir, exist_ok=True)
-            
+            logger.info(f"ダウンロードディレクトリを設定: {download_dir}")
+
             prefs = {
-                "download.default_directory": download_dir,
+                "download.default_directory": download_dir_str,  # 文字列を使用
                 "download.prompt_for_download": False,
                 "download.directory_upgrade": True,
                 "safebrowsing.enabled": False

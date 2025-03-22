@@ -1,184 +1,192 @@
-# プロジェクト名
+# EBIS_BIGQUERY - BigQueryスキーマ作成・テストツールセット
 
-## 概要
-このプロジェクトは、[主な目的や機能の概要を記述]するシステムです。
+このプロジェクトは、BigQuery用のスキーマを作成し、テストデータをロードしてスキーマの検証を行うためのツールセットです。日本語の列名や特殊文字を含むフィールド名、および括弧を含む列名の処理に対応しています。
 
 ## 主な機能
-- [主要機能1]
-- [主要機能2]
-- [主要機能3]
-- [主要機能4]
-- [主要機能5]
 
-## システム要件
-- Python 3.8以上
-- [必要なライブラリやツール1]
-- [必要なライブラリやツール2]
-- [必要なライブラリやツール3]
+1. CSVファイルからBigQueryスキーマを作成
+   - 列名と型情報を抽出
+   - 日本語の列名に対応
+   - フィールド名の特殊文字処理
 
-## セットアップと実行方法
+2. テストデータの自動生成
+   - サンプル値からランダムなバリエーションを作成
+   - タイムスタンプ型の適切な処理
 
-### 1. 環境のセットアップ
+3. BigQueryへのロードテスト機能
+   - スキーマに基づくテーブル作成
+   - テストデータのロード
+   - 検証機能
 
-#### 仮想環境の作成と有効化
+4. GCSからBigQueryへのロード機能
+   - 括弧や特殊文字を含む列名の前処理
+   - CSV/Parquetファイルの対応
+   - 文字エンコーディングの処理
+
+## ファイル構成
+
+```
+EBIS_BIGQUERY/
+├── README.md                          # このファイル
+├── config/
+│   └── secrets.env                    # 環境変数設定ファイル
+├── src/
+│   ├── __init__.py                   # ソースパッケージ定義
+│   │   ├── __init__.py               # ユーティリティパッケージ定義
+│   │   └── environment.py            # 環境変数管理ユーティリティ
+│   └── modules/
+│       └── bigquery/
+│           ├── preprocess_gcs_files.py         # GCSファイル前処理ユーティリティ
+│           ├── load_preprocessed_files.py      # 前処理済みファイルロードユーティリティ
+│           └── load_preprocessed_ae_ssresult.py # AE_SSresult専用ロードスクリプト
+├── create_and_test_bigquery_schema.py  # スキーマ作成・テストメインスクリプト
+├── create_test_data.py                 # テストデータ・スキーマJSON生成スクリプト
+├── test_load_to_bigquery.py            # BigQueryへのテストデータロードスクリプト
+├── run_bigquery_schema_test.bat        # テスト自動実行バッチファイル
+├── set_bigquery_env.bat                # 環境変数設定ツール
+├── run_preprocessed_gcs_to_bigquery.bat # GCSデータロード実行バッチファイル
+└── requirements.txt                    # 必要なPythonライブラリ
+```
+
+## 使用方法
+
+### 前提条件
+
+1. Python 3.7以上
+2. 必要なライブラリ：
+   - google-cloud-bigquery
+   - google-cloud-storage
+   - pandas
+   - python-dotenv
+
+### 環境変数の設定
+
+1. `set_bigquery_env.bat`を実行して環境変数を設定します。
+   - 実行すると`config/secrets.env`ファイルが生成されます（存在しない場合）
+   - このファイルをテキストエディタで開き、以下の値を設定します：
+     
+     ```
+     #GCS
+     GCP_PROJECT_ID=your-project-id
+     GCS_BUCKET_NAME=your-bucket-name
+     GCS_KEY_PATH=config/your-key-file.json
+     
+     #bigquery
+     BIGQUERY_PROJECT_ID=your-project-id
+     BIGQUERY_DATASET=your-dataset
+     LOG_TABLE=rawdata_log
+     ```
+
+2. GoogleCloudのサービスアカウントキーファイルを取得し、`GCS_KEY_PATH`で指定したパスに配置します。
+
+### スキーマ作成とテスト
+
+1. `run_bigquery_schema_test.bat`を実行します
+   - オプション:
+     - `--schema FILE`: 使用するスキーマCSVファイル（デフォルト: data/SE_SSresult/AE_CVresult_schema.csv）
+     - `--mode MODE`: 実行モード（create: データ作成のみ、load: ロードのみ、all: 両方）
+
+   例: `run_bigquery_schema_test.bat --mode create`
+
+### GCSデータのBigQueryへのロード
+
+カッコや特殊文字を含む列名のファイルをGCSからBigQueryにロードする場合：
+
+1. `run_preprocessed_gcs_to_bigquery.bat`を実行します
+   - オプション:
+     - `--gcs-path`: GCSパス (例: gs://your_bucket/path)
+     - `--table-prefix`: テーブル名のプレフィックス
+     - `--dataset`: データセットID
+     - `--file-type`: ファイル形式（csv/parquet）
+     - `--write-disposition`: 書き込みモード（WRITE_EMPTY/WRITE_TRUNCATE/WRITE_APPEND）
+
+   例: `run_preprocessed_gcs_to_bigquery.bat --gcs-path gs://your_bucket/path --table-prefix prefix --file-type csv`
+
+## 注意事項
+
+- BigQueryへのアクセスには適切な権限を持つサービスアカウントが必要です
+- 大量のデータを処理する場合は、メモリ使用量に注意してください
+- ログは`logs`ディレクトリに保存されます
+
+## テスト環境
+
+このツールは以下の環境でテスト済みです：
+- Windows 10
+- Python 3.9.7
+- BigQuery API v2
+
+# EBIS BigQuery データローダー
+
+## 概要
+
+このプロジェクトは、CSVファイルをGoogle BigQueryにロードするためのツールです。特にExcelから出力されたタイムスタンプ値を含むデータを適切に変換し、BigQueryのスキーマに合わせて処理します。
+
+## 前提条件
+
+- Python 3.7以上
+- Google Cloud認証情報（サービスアカウントキー）
+- 必要なPythonパッケージ（requirements.txt参照）
+
+## セットアップ
+
+1. リポジトリをクローン/ダウンロード
+
+2. 必要なパッケージをインストール
+   ```
+   pip install -r requirements.txt
+   ```
+
+3. 環境変数ファイルを設定
+   `config/secrets.env`ファイルを作成し、以下の内容を設定してください：
+   ```
+   BIGQUERY_PROJECT_ID=あなたのGCPプロジェクトID
+   BIGQUERY_DATASET_ID=使用するデータセットID
+   BIGQUERY_KEY_PATH=サービスアカウントキーファイルのパス
+   ```
+
+## 使用方法
+
+### コマンドライン
+
 ```bash
-# 仮想環境を作成
-run.bat
+# デフォルト値を使用
+load_to_bigquery.bat
 
-# または手動で仮想環境を有効化する場合
-.\env\Scripts\activate
+# 引数を指定
+load_to_bigquery.bat --input "data/path/to/your/file.csv" --output "your_table_name"
 ```
 
-- 仮想環境が存在しない場合、自動的に作成されます
-- 必要なパッケージは `requirements.txt` から自動インストールされます
+### パラメータ
 
-#### 設定ファイルの準備
+- `--input` : 入力CSVファイルのパス（デフォルト: `data\AE_CV\SE_SSresult\result_schema.csv`）
+- `--output` : 出力BigQueryテーブル名（デフォルト: `AE_CVresult`）
 
-##### 基本設定 (config/settings.ini)
-```ini
-[SECTION1]
-# 設定項目1の説明
-setting1 = value1
-# 設定項目2の説明
-setting2 = value2
+## 入力CSVファイル形式
 
-[SECTION2]
-# 設定項目3の説明
-setting3 = value3
-# 設定項目4の説明
-setting4 = value4
+CSVファイルには以下の列が必要です：
+
+- `column_name_mod` : フィールド名
+- `data_type` : データ型（`str`, `int`, `timestamp`のいずれか）
+- `sample` : サンプルデータ（タイムスタンプはExcelシリアル値形式）
+
+## ディレクトリ構造
+
 ```
-
-##### 環境変数設定 (config/secrets.env)
-機密情報や環境固有の設定を保存するファイルです：
-- API認証情報
-- データベース接続情報
-- 外部サービスの認証情報
-
-### 2. 実行方法
-
-#### 基本的な実行方法
-```bash
-run.bat
-```
-
-デフォルトでは `src\main.py` が実行されます。他のスクリプトを指定する場合は、引数にスクリプトパスを渡します：
-
-```bash
-run.bat src\your_script.py
-```
-
-#### 環境の指定
-環境を指定する場合、`--env` オプションを使用します：
-
-```bash
-run.bat --env production
-```
-
-利用可能な環境：
-- `development`: 開発環境（デフォルト）
-- `production`: 本番環境
-- `test`: テスト環境
-
-#### 開発時の高度な実行方法
-```bash
-run_dev.bat
-```
-
-`run_dev.bat` は以下の機能を提供します：
-- Pythonモジュールとしてスクリプトを実行（`-m` オプション使用）
-- 環境選択機能（development/production）
-- requirements.txtの変更検知と自動パッケージインストール
-- テストモードの自動設定（development環境選択時）
-
-#### テストモードでの実行
-テストモードでスクリプトを実行するには、`--test` オプションを使用します：
-
-```bash
-run.bat --test
-```
-
-または：
-
-```bash
-run_dev.bat --env development
-```
-（development環境では自動的にテストモードが有効になります）
-
-### 3. 設定項目の説明
-
-#### 基本設定 (settings.ini)
-- `[SECTION1]`: [セクション1の説明]
-  - `setting1`: [設定1の詳細説明]
-  - `setting2`: [設定2の詳細説明]
-- `[SECTION2]`: [セクション2の説明]
-  - `setting3`: [設定3の詳細説明]
-  - `setting4`: [設定4の詳細説明]
-
-#### 環境別設定
-- 開発環境（development）
-  - デバッグログ有効
-  - テストデータ使用
-  - テストモード使用可能
-- 本番環境（production）
-  - 最小限のログ出力
-  - 実際のデータを使用
-  - パフォーマンス最適化
-
-## プロジェクト構造
-```
-project_root/
-├── src/                      # ソースコード
-│   ├── __init__.py           # Pythonパッケージ化
-│   ├── main.py               # メインスクリプト
-│   ├── utils/                # ユーティリティスクリプト
-│   │   ├── __init__.py       # Pythonパッケージ化
-│   │   ├── environment.py    # 設定ファイルの読み込み
-│   │   └── logging_config.py # ログ設定
-│   └── modules/              # モジュールディレクトリ
-│       ├── __init__.py       # Pythonパッケージ化
-│       └── module1.py        # サンプルモジュール
-├── tests/                    # テスト用コード
-│   ├── __init__.py           # Pythonパッケージ化
-│   └── conftest.py           # Pytestの共通設定
-├── data/                     # データ保存用ディレクトリ
-│   └── .gitkeep              # 空ディレクトリをGitで追跡
-├── logs/                     # 実行時のログファイル保存先
-│   └── .gitkeep              # 空ディレクトリをGitで追跡
-├── config/                   # 設定ファイル
-│   ├── settings.ini          # 環境ごとの設定
-│   └── secrets.env           # APIキーなどの秘密情報
-├── docs/                     # ドキュメント用ディレクトリ
-│   ├── spec.md               # 詳細仕様書
-│   └── .gitkeep              # 空ディレクトリをGitで追跡
-├── requirements.txt          # 必要なパッケージ
-├── run.bat                   # プロジェクト実行用スクリプト
-└── run_dev.bat               # 開発環境用実行スクリプト
+├── config/               # 設定ファイル
+│   └── secrets.env       # 環境変数ファイル（要作成）
+├── data/                 # データファイル
+│   ├── schema/           # 生成されたスキーマJSONファイル
+│   └── AE_CV/            # 入力CSVファイル
+├── src/                  # ソースコード
+│   ├── load_to_bigquery.py  # メインスクリプト
+│   └── utils/            # ユーティリティ
+│       └── environment.py    # 環境変数ユーティリティ
+├── load_to_bigquery.bat  # 実行用バッチファイル
+└── requirements.txt      # 依存パッケージ
 ```
 
 ## 注意事項
 
-1. **仮想環境の存在確認**:
-   `run.bat` を初回実行時に仮想環境が作成されます。既存の仮想環境を削除する場合、手動で `.\env` を削除してください。
-
-2. **環境変数の設定**:
-   APIキーなどの秘密情報は `config\secrets.env` に格納し、共有しないよう注意してください。
-
-3. **パッケージのアップデート**:
-   必要に応じて、`requirements.txt` を更新してください。更新後、`run.bat` を実行すると自動的にインストールされます。
-
-4. **Pythonパッケージ構造**:
-   `src/` および `tests/` ディレクトリとそのサブディレクトリには `__init__.py` ファイルが含まれており、Pythonパッケージとして認識されます。これにより、モジュールのインポートが容易になります。
-
-## トラブルシューティング
-- ログファイルは `logs/` ディレクトリに保存されます
-- 一般的な問題と解決策：
-  - [問題1]: [解決策1]
-  - [問題2]: [解決策2]
-  - [問題3]: [解決策3]
-
-## サポート情報
-
-- **開発者**: [Your Name or Team Name]
-- **連絡先**: example@domain.com
-- **最終更新日**: [YYYY-MM-DD]
+- BigQueryの命名規則に合わせて、フィールド名の特殊文字はアンダースコアに置換されます
+- タイムスタンプ値はExcelシリアル値から適切なBigQueryタイムスタンプ形式に変換されます
+- 既存のテーブルは上書きされます

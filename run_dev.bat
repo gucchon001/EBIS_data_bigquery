@@ -48,7 +48,7 @@ if "%~1"=="" (
     set /p "CHOICE=選択肢を入力してください (1/2): "
     if "%CHOICE%"=="1" (
         set "APP_ENV=development"
-        set "TEST_MODE=--test"
+        set "TEST_MODE="
     )
     if "%CHOICE%"=="2" (
         set "APP_ENV=production"

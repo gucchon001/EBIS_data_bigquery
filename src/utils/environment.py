@@ -1,181 +1,193 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+環境設定ユーティリティ
+
+設定ファイルや環境変数を読み込み、一元管理するためのユーティリティクラスです。
+"""
+
 import os
-from pathlib import Path
-from dotenv import load_dotenv
-from typing import Optional, Any
+import sys
 import configparser
+from pathlib import Path
+from typing import Optional, Dict, Any
+
 
 class EnvironmentUtils:
-    """プロジェクト全体で使用する環境関連のユーティリティクラス"""
+    """
+    環境変数や設定ファイルを管理するユーティリティクラス
+    """
+    _env_loaded = False
+    _config = None
+    _project_root = None
 
-    # プロジェクトルートのデフォルト値
-    BASE_DIR = Path(__file__).resolve().parent.parent.parent
+    @classmethod
+    def get_project_root(cls) -> Path:
+        """プロジェクトのルートディレクトリを取得します"""
+        if cls._project_root is None:
+            # 現在のファイルの親ディレクトリを辿って、プロジェクトルートを特定
+            current_file = Path(__file__).resolve()
+            cls._project_root = current_file.parent.parent.parent
+        return cls._project_root
 
-    @staticmethod
-    def set_project_root(path: Path) -> None:
+    @classmethod
+    def resolve_path(cls, path: str) -> Path:
         """
-        プロジェクトのルートディレクトリを設定します。
-
+        相対パスを絶対パスに解決します
+        
         Args:
-            path (Path): 新しいプロジェクトルート
-        """
-        EnvironmentUtils.BASE_DIR = path
-
-    @staticmethod
-    def get_project_root() -> Path:
-        """
-        プロジェクトのルートディレクトリを取得します。
-
+            path: 解決する相対パス
+            
         Returns:
-            Path: プロジェクトのルートディレクトリ
+            解決された絶対パス
         """
-        return EnvironmentUtils.BASE_DIR
+        if os.path.isabs(path):
+            return Path(path)
+        return cls.get_project_root() / path
 
-    @staticmethod
-    def load_env(env_file: Optional[Path] = None) -> None:
+    @classmethod
+    def load_env(cls, env_file: str = "config/secrets.env") -> None:
         """
-        環境変数を .env ファイルからロードします。
-
+        環境変数ファイルを読み込みます
+        
         Args:
-            env_file (Optional[Path]): .env ファイルのパス
+            env_file: 環境変数ファイルのパス（デフォルト: config/secrets.env）
         """
-        env_file = env_file or (EnvironmentUtils.BASE_DIR / "config" / "secrets.env")
+        if cls._env_loaded:
+            return
+        
+        env_path = cls.resolve_path(env_file)
+        
+        if not env_path.exists():
+            print(f"警告: 環境変数ファイル {env_path} が見つかりません。", file=sys.stderr)
+            cls._env_loaded = True
+            return
+        
+        # .envファイルを読み込む
+        with open(env_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                # コメント行や空行はスキップ
+                if not line or line.startswith('#'):
+                    continue
+                
+                # key=valueの形式を解析
+                if '=' in line:
+                    key, value = line.split('=', 1)
+                    key = key.strip()
+                    value = value.strip()
+                    
+                    # 既存の環境変数を上書きしないように注意
+                    if key not in os.environ:
+                        os.environ[key] = value
+        
+        cls._env_loaded = True
+        print(f"環境変数ファイル {env_path} を読み込みました。")
 
-        if not env_file.exists():
-            raise FileNotFoundError(f"{env_file} が見つかりません。正しいパスを指定してください。")
-
-        load_dotenv(env_file)
-
-    @staticmethod
-    def get_env_var(key: str, default: Optional[Any] = None) -> Any:
+    @classmethod
+    def get_env_var(cls, var_name: str, default: Optional[str] = None) -> str:
         """
-        環境変数を取得します。
-
+        環境変数の値を取得します
+        
         Args:
-            key (str): 環境変数のキー
-            default (Optional[Any]): デフォルト値
-
+            var_name: 環境変数名
+            default: デフォルト値（未設定時に返す値）
+            
         Returns:
-            Any: 環境変数の値またはデフォルト値
-        """
-        return os.getenv(key, default)
-
-    @staticmethod
-    def get_config_file(file_name: str = "settings.ini") -> Path:
-        """
-        設定ファイルのパスを取得します。
-
-        Args:
-            file_name (str): 設定ファイル名
-
-        Returns:
-            Path: 設定ファイルのパス
-
+            環境変数の値またはデフォルト値
+            
         Raises:
-            FileNotFoundError: 指定された設定ファイルが見つからない場合
+            ValueError: 環境変数が設定されておらず、デフォルト値も指定されていない場合
         """
-        config_path = EnvironmentUtils.BASE_DIR / "config" / file_name
-        if not config_path.exists():
-            raise FileNotFoundError(f"Configuration file not found: {config_path}")
-        return config_path
-
-    @staticmethod
-    def get_config_value(section: str, key: str, default: Optional[Any] = None) -> Any:
-        """
-        設定ファイルから指定のセクションとキーの値を取得します。
-
-        Args:
-            section (str): セクション名
-            key (str): キー名
-            default (Optional[Any]): デフォルト値
-
-        Returns:
-            Any: 設定値
-        """
-        config_path = EnvironmentUtils.get_config_file()
-        config = configparser.ConfigParser()
-
-        # utf-8 エンコーディングで読み込む
-        config.read(config_path, encoding='utf-8')
-
-        if not config.has_section(section):
-            return default
-        if not config.has_option(section, key):
-            return default
-
-        value = config.get(section, key, fallback=default)
-
-        # 型変換
-        if value.isdigit():
-            return int(value)
-        if value.replace('.', '', 1).isdigit():
-            return float(value)
-        if value.lower() in ['true', 'false']:
-            return value.lower() == 'true'
+        if not cls._env_loaded:
+            cls.load_env()
+        
+        value = os.environ.get(var_name)
+        if value is None:
+            if default is not None:
+                return default
+            raise ValueError(f"環境変数 {var_name} が設定されていません。")
         return value
 
-    @staticmethod
-    def resolve_path(path: str) -> Path:
+    @classmethod
+    def get_config_file(cls, config_file: str = "config/settings.ini") -> configparser.ConfigParser:
         """
-        指定されたパスをプロジェクトルートに基づいて絶対パスに変換します。
-
+        設定ファイルを読み込みます
+        
         Args:
-            path (str): 相対パスまたは絶対パス
-
+            config_file: 設定ファイルのパス（デフォルト: config/settings.ini）
+            
         Returns:
-            Path: 解決された絶対パス
+            ConfigParser オブジェクト
         """
-        resolved_path = Path(path)
-        if not resolved_path.is_absolute():
-            resolved_path = EnvironmentUtils.get_project_root() / resolved_path
+        if cls._config is not None:
+            return cls._config
+        
+        config_path = cls.resolve_path(config_file)
+        if not config_path.exists():
+            print(f"警告: 設定ファイル {config_path} が見つかりません。", file=sys.stderr)
+            cls._config = configparser.ConfigParser()
+            return cls._config
+        
+        cls._config = configparser.ConfigParser()
+        cls._config.read(str(config_path), encoding='utf-8')
+        return cls._config
 
-        if not resolved_path.exists():
-            raise FileNotFoundError(f"Resolved path does not exist: {resolved_path}")
-
-        return resolved_path
-
-    @staticmethod
-    def get_service_account_file() -> Path:
+    @classmethod
+    def get_config_value(cls, section: str, key: str, default: Optional[str] = None) -> str:
         """
-        サービスアカウントファイルのパスを取得します。
-
+        設定ファイルから値を取得します
+        
+        Args:
+            section: セクション名
+            key: キー名
+            default: デフォルト値（未設定時に返す値）
+            
         Returns:
-            Path: サービスアカウントファイルの絶対パス
-
+            設定値またはデフォルト値
+            
         Raises:
-            FileNotFoundError: ファイルが存在しない場合
+            ValueError: 設定値が存在せず、デフォルト値も指定されていない場合
         """
-        service_account_file = EnvironmentUtils.get_env_var(
-            "SERVICE_ACCOUNT_FILE",
-            default=EnvironmentUtils.get_config_value("GOOGLE", "service_account_file", default="config/service_account.json")
-        )
+        config = cls.get_config_file()
+        try:
+            return config.get(section, key)
+        except (configparser.NoSectionError, configparser.NoOptionError):
+            if default is not None:
+                return default
+            raise ValueError(f"設定 [{section}]の{key} が見つかりません。")
 
-        return EnvironmentUtils.resolve_path(service_account_file)
-
-    @staticmethod
-    def get_environment() -> str:
+    @classmethod
+    def get_bigquery_settings(cls) -> Dict[str, str]:
         """
-        環境変数 APP_ENV を取得します。
-        デフォルト値は 'development' です。
-
+        BigQuery接続に必要な設定を取得します
+        
         Returns:
-            str: 現在の環境（例: 'development', 'production'）
+            BigQuery設定のディクショナリ
         """
-        return EnvironmentUtils.get_env_var("APP_ENV", "development")
+        if not cls._env_loaded:
+            cls.load_env()
+        
+        return {
+            "project_id": cls.get_env_var("BIGQUERY_PROJECT_ID"),
+            "dataset_id": cls.get_env_var("BIGQUERY_DATASET"),
+            "key_path": cls.resolve_path(cls.get_env_var("GCS_KEY_PATH")),
+        }
 
-    @staticmethod
-    def get_openai_api_key():
+    @classmethod
+    def get_gcs_settings(cls) -> Dict[str, str]:
         """
-        Get the OpenAI API key from the environment variables.
+        GCS接続に必要な設定を取得します
+        
+        Returns:
+            GCS設定のディクショナリ
         """
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY が設定されていません。環境変数を確認してください。")
-        return api_key
-
-    @staticmethod
-    def get_openai_model():
-        """
-        OpenAI モデル名を settings.ini ファイルから取得します。
-        設定がない場合はデフォルト値 'gpt-4o' を返します。
-        """
-        return EnvironmentUtils.get_config_value("OPENAI", "model", default="gpt-4o")
+        if not cls._env_loaded:
+            cls.load_env()
+        
+        return {
+            "project_id": cls.get_env_var("GCP_PROJECT_ID"),
+            "bucket_name": cls.get_env_var("GCS_BUCKET_NAME"),
+            "key_path": cls.resolve_path(cls.get_env_var("GCS_KEY_PATH")),
+        }
