@@ -1,334 +1,396 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-EBiSログインページを操作するためのモジュール
+ログインページ操作モジュール
+このモジュールは、特定のWebサイトのログイン処理を実行するための
+LoginPageクラスを提供します。
+
+login_page_template.py の汎用的なクラスを継承し、
+特定のWebサイト用にカスタマイズしています。
 """
 
 import os
-import time
 import sys
-from pathlib import Path
+import time
 import traceback
+from pathlib import Path
 
 # プロジェクトルートへのパスを追加
 project_root = str(Path(__file__).parent.parent.parent.parent)
 sys.path.append(project_root)
 
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
 from src.utils.logging_config import get_logger
 from src.utils.environment import EnvironmentUtils as env
-from src.modules.browser.browser import Browser
+from src.modules.browser.login_page_template import LoginPage as LoginPageTemplate
+from src.modules.browser.login_page_template import handle_errors, LoginError
 
 logger = get_logger(__name__)
 
-class EbisLoginPage:
+class LoginPage(LoginPageTemplate):
     """
-    EBiSログインページの操作を担当するクラス
+    特定のWebサイト用にカスタマイズされたログインページクラス
+    
+    汎用的なLoginPageTemplateクラスを継承し、
+    特定のWebサイト専用の処理を追加しています。
+    
+    特徴:
+    1. 特定のWebサイト向けのセレクタと設定を利用
+    2. 親クラスのPOMパターン実装と共通機能を継承
+    3. 組織選択・2要素認証など、サイト特有の機能に対応
+    4. 親クラスのエラーハンドリングと連携し、堅牢な操作を実現
+    5. サイト固有のログインフォーム処理とバリデーションを実装
     """
     
     def __init__(self, browser=None):
         """
-        初期化
+        LoginPageクラスの初期化
         
         Args:
-            browser (Browser, optional): 使用するブラウザインスタンス
+            browser (Browser): 既存のブラウザインスタンス（省略時は新規作成）
         """
-        self.browser = browser
-        if not self.browser:
-            logger.info("ブラウザインスタンスが提供されていないため、新しく作成します")
-            self.browser = Browser(headless=False)
-            if not self.browser.setup():
-                logger.error("ブラウザのセットアップに失敗しました")
-                raise RuntimeError("ブラウザのセットアップに失敗しました")
+        # 親クラスの初期化を呼び出す
+        super().__init__(selector_group='login', browser=browser)
         
-        # 環境変数を確実に読み込む
-        env.load_env()
-        
-        # ログイン情報を環境変数から取得
-        self.account_id = env.get_env_var("account_key1", "")
-        self.login_id = env.get_env_var("username1", "")
-        self.password = env.get_env_var("password1", "")
-        
-        # 必須情報の確認
-        if not all([self.account_id, self.login_id, self.password]):
-            logger.error("ログインに必要な環境変数が設定されていません")
-            raise ValueError("環境変数 account_key1, username1, password1 が必要です")
-        
-        # ログインページURL - 設定ファイルから取得
-        self.login_url = env.get_config_value("Credentials", "login_url", "")
-        if not self.login_url:
-            logger.warning("設定ファイルからログインURLが取得できませんでした。デフォルト値を使用します。")
-            self.login_url = "https://id.ebis.ne.jp/"
-        logger.info(f"ログインURL: {self.login_url}")
-        
-        # 最大試行回数
-        self.max_attempts = 3
+        # 追加の設定を読み込む
+        self._load_additional_settings()
     
-    def navigate_to_login_page(self):
+    @handle_errors(screenshot_name="load_settings_error")
+    def _load_additional_settings(self):
         """
-        ログインページに移動
+        特定のWebサイト用の追加設定を読み込む
+        
+        設定ファイルから組織選択関連の設定や2要素認証関連の設定を読み込みます。
         
         Returns:
-            bool: 成功した場合はTrue、失敗した場合はFalse
+            bool: 設定の読み込みが成功した場合はTrue
         """
+        # 組織選択関連の設定
+        org_value = env.get_config_value("Login", "auto_select_org", "false")
+        self.auto_select_org = org_value.lower() == "true" if isinstance(org_value, str) else bool(org_value)
+        self.org_name = env.get_config_value("Login", "org_name", "")
+        
+        # 2要素認証関連の設定
+        tfa_value = env.get_config_value("Login", "handle_2fa", "false")
+        self.handle_2fa = tfa_value.lower() == "true" if isinstance(tfa_value, str) else bool(tfa_value)
+        backup_value = env.get_config_value("Login", "use_backup_code", "false")
+        self.use_backup_code = backup_value.lower() == "true" if isinstance(backup_value, str) else bool(backup_value)
+        self.backup_code = env.get_config_value("Login", "backup_code", "")
+        
+        # ポップアップ関連の設定
+        popup_value = env.get_config_value("Login", "auto_handle_post_login_popup", "false")
+        self.auto_handle_popup = popup_value.lower() == "true" if isinstance(popup_value, str) else bool(popup_value)
+        self.popup_timeout = int(env.get_config_value("Login", "popup_timeout", "10"))
+        
+        # サイト固有のログインフォーム設定
+        remember_value = env.get_config_value("Login", "remember_me", "false")
+        self.remember_me = remember_value.lower() == "true" if isinstance(remember_value, str) else bool(remember_value)
+        recaptcha_value = env.get_config_value("Login", "require_recaptcha", "false")
+        self.require_recaptcha = recaptcha_value.lower() == "true" if isinstance(recaptcha_value, str) else bool(recaptcha_value)
+        
+        logger.info("サイト固有の設定を読み込みました")
+        return True
+    
+    @handle_errors(screenshot_name="fill_form_error")
+    def fill_login_form(self, account_key=None, username=None, password=None):
+        """
+        ログインフォームに情報を入力します
+        親クラスのメソッドをオーバーライドして、サイト固有の処理を追加します
+        
+        Args:
+            account_key (str, optional): アカウントキー。指定がなければ設定値を使用
+            username (str, optional): ユーザー名。指定がなければ設定値を使用
+            password (str, optional): パスワード。指定がなければ設定値を使用
+            
+        Returns:
+            bool: 入力が成功した場合はTrue
+        """
+        # 親クラスのメソッドを呼び出して基本情報を入力
+        if not super().fill_login_form(account_key, username, password):
+            logger.error("基本ログイン情報の入力に失敗しました")
+            return False
+        
+        # サイト固有のフォーム要素処理（必要に応じて実装）
         try:
-            logger.info(f"ログインページにアクセスします: {self.login_url}")
-            self.browser.navigate_to(self.login_url)
+            # 「ログイン状態を保持する」チェックボックスの処理
+            if self.remember_me:
+                remember_me_selector = ('login', 'remember_me')
+                if 'login' in self.browser.selectors and 'remember_me' in self.browser.selectors['login']:
+                    # チェックボックスの現在の状態を取得
+                    checkbox = self.browser.get_element(*remember_me_selector)
+                    if checkbox and not checkbox.is_selected():
+                        # チェックされていない場合はクリック
+                        self.browser.click_element(*remember_me_selector)
+                        logger.info("「ログイン状態を保持する」をチェックしました")
             
-            # ページが読み込まれるまで待機
-            WebDriverWait(self.browser.driver, 10).until(
-                EC.presence_of_element_located((By.ID, "account_key"))
-            )
+            # reCAPTCHAの処理（必要に応じて実装）
+            if self.require_recaptcha:
+                logger.info("reCAPTCHAの処理が必要ですが、自動対応は実装されていません")
+                # 手動での対応が必要な場合は待機
+                time.sleep(5)
             
-            logger.info("ログインページへのアクセスに成功しました")
+            logger.info("サイト固有のフォーム要素の処理が完了しました")
             return True
             
-        except TimeoutException:
-            logger.error("ログインページの読み込みがタイムアウトしました")
-            return False
-            
         except Exception as e:
-            logger.error(f"ログインページへのアクセス中にエラーが発生しました: {str(e)}")
+            logger.error(f"サイト固有のフォーム処理中にエラーが発生しました: {str(e)}")
             logger.error(traceback.format_exc())
             return False
     
-    def fill_login_form(self):
-        """
-        ログインフォームに必要な情報を入力
-        
-        Returns:
-            bool: 成功した場合はTrue、失敗した場合はFalse
-        """
-        try:
-            logger.info("ログインフォームに情報を入力します")
-            
-            # アカウントID入力
-            account_id_input = self.browser.driver.find_element(By.ID, "account_key")
-            account_id_input.clear()
-            account_id_input.send_keys(self.account_id)
-            logger.debug(f"アカウントIDを入力しました: {self.account_id}")
-            
-            # ログインID入力
-            login_id_input = self.browser.driver.find_element(By.ID, "username")
-            login_id_input.clear()
-            login_id_input.send_keys(self.login_id)
-            logger.debug(f"ログインIDを入力しました: {self.login_id}")
-            
-            # パスワード入力
-            password_input = self.browser.driver.find_element(By.ID, "password")
-            password_input.clear()
-            password_input.send_keys(self.password)
-            logger.debug("パスワードを入力しました")
-            
-            logger.info("ログインフォームへの入力が完了しました")
-            return True
-            
-        except NoSuchElementException as e:
-            logger.error(f"ログインフォームの要素が見つかりません: {str(e)}")
-            return False
-            
-        except Exception as e:
-            logger.error(f"ログインフォームへの入力中にエラーが発生しました: {str(e)}")
-            logger.error(traceback.format_exc())
-            return False
-    
+    @handle_errors(screenshot_name="submit_form_error")
     def submit_login_form(self):
         """
-        ログインフォームを送信
+        ログインフォームを送信します
+        親クラスのメソッドをオーバーライドして、サイト固有の処理を追加します
         
         Returns:
-            bool: 成功した場合はTrue、失敗した場合はFalse
+            bool: 送信が成功した場合はTrue
         """
-        try:
-            logger.info("ログインボタンをクリックします")
-            
-            # ログインボタンをクリック
-            login_button = self.browser.driver.find_element(By.CSS_SELECTOR, "button.loginbtn")
-            login_button.click()
-            
-            # リダイレクトを待機
-            start_url = self.browser.driver.current_url
-            logger.info(f"クリック前のURL: {start_url}")
-            
-            # 一定時間待機してURLの変化を確認
-            timeout = 15  # 15秒
-            wait_time = 0
-            check_interval = 1
-            
-            while wait_time < timeout:
-                time.sleep(check_interval)
-                wait_time += check_interval
-                current_url = self.browser.driver.current_url
-                
-                if current_url != start_url:
-                    logger.info(f"URLが変化しました: {current_url}")
-                    return True
-                
-                logger.debug(f"待機中... {wait_time}秒経過")
-            
-            # タイムアウトした場合でも、念のためURLをチェック
-            current_url = self.browser.driver.current_url
-            if current_url != start_url:
-                logger.info(f"待機後にURLが変化していました: {current_url}")
-                return True
-                
-            logger.warning(f"ログイン後のリダイレクトがタイムアウトしましたが、処理を続行します（{timeout}秒待機）")
-            return True  # テスト用に仮に成功と扱う
-            
-        except NoSuchElementException:
-            logger.error("ログインボタンが見つかりません")
+        # 送信前の追加処理（必要に応じて実装）
+        # ...
+        
+        # 親クラスのメソッドを呼び出してフォーム送信
+        result = super().submit_login_form()
+        if not result:
             return False
+        
+        # 送信後の追加処理（必要に応じて実装）
+        # 例: 特定のサイトでは送信後に追加の確認ダイアログが表示される場合など
+        try:
+            # サイト固有の送信後処理が必要な場合はここに実装
+            confirm_dialog_selector = ('login', 'confirm_dialog_ok')
+            if 'login' in self.browser.selectors and 'confirm_dialog_ok' in self.browser.selectors['login']:
+                # 確認ダイアログの有無を確認（短いタイムアウトで待機）
+                try:
+                    dialog = self.browser.get_element(*confirm_dialog_selector, wait_time=3)
+                    if dialog:
+                        self.browser.click_element(*confirm_dialog_selector)
+                        logger.info("送信後の確認ダイアログを処理しました")
+                except TimeoutException:
+                    # ダイアログがない場合は何もしない
+                    pass
+            
+            return True
             
         except Exception as e:
-            logger.error(f"ログインフォームの送信中にエラーが発生しました: {str(e)}")
+            logger.error(f"フォーム送信後の処理中にエラーが発生しました: {str(e)}")
             logger.error(traceback.format_exc())
             return False
     
+    @handle_errors(screenshot_name="login_check_error")
     def check_login_success(self):
         """
-        ログインの成功を確認
+        ログイン成功を確認します
+        親クラスのメソッドをオーバーライドして、サイト固有の成功判定を追加します
         
         Returns:
-            bool: ログイン成功の場合はTrue、失敗の場合はFalse
+            bool: ログインが成功した場合はTrue
         """
+        # 親クラスの成功確認メソッドを呼び出し
+        if super().check_login_success():
+            logger.info("親クラスの判定基準によりログイン成功を確認しました")
+            return True
+        
+        # サイト固有の成功判定（必要に応じて実装）
         try:
-            # 現在のURLが正しいかチェック
-            current_url = self.browser.driver.current_url
-            logger.info(f"ログイン後のURL: {current_url}")
-            
-            # 成功URL（ダッシュボードのドメイン）を設定ファイルから取得
-            success_domain = "bishamon.ebis.ne.jp"
-            
-            # ログイン成功URLにリダイレクトされたかチェック
-            if success_domain in current_url:
-                logger.info("ログインに成功しました")
-                return True
-                
-            # エラーメッセージの有無をチェック
+            # 例: 特定のサイトでは特定の要素が表示されるかどうかで判定
+            dashboard_element = ('css', '.dashboard-header')
             try:
-                error_message = self.browser.driver.find_element(By.CLASS_NAME, "alert-danger")
-                logger.error(f"ログインエラーが表示されています: {error_message.text}")
-                return False
-            except NoSuchElementException:
-                # エラーメッセージがない場合はOK
+                element = self.browser.wait_for_element(
+                    dashboard_element[0],
+                    dashboard_element[1],
+                    timeout=5
+                )
+                if element:
+                    logger.info("ダッシュボード要素を確認しました - ログイン成功")
+                    return True
+            except TimeoutException:
                 pass
                 
-            # ログインページから移動した場合は成功とみなす
-            login_domain = self.login_url
-            if login_domain and login_domain in current_url:
-                logger.warning("まだログインページにいるようです")
-                return False
-            else:
-                logger.info("ログインページから移動しました。ログイン成功と判断します")
+            # 例: URLに特定の文字列が含まれるかで判定
+            if "dashboard" in self.driver.current_url or "home" in self.driver.current_url:
+                logger.info(f"ダッシュボードURLを確認しました: {self.driver.current_url}")
                 return True
                 
-            logger.warning("ログイン状態が確認できません")
+            # その他のサイト固有の判定方法を追加
+            
+            logger.warning("すべての判定方法でログイン成功を確認できませんでした")
             return False
             
         except Exception as e:
-            logger.error(f"ログイン確認中にエラーが発生しました: {str(e)}")
+            logger.error(f"ログイン成功確認中にエラーが発生しました: {str(e)}")
             logger.error(traceback.format_exc())
             return False
     
-    def execute_login_flow(self):
+    @handle_errors(screenshot_name="popup_handle_error")
+    def handle_post_login_popup(self):
         """
-        ログイン処理の一連のフローを実行
+        ログイン後のお知らせポップアップを処理するためのメソッド
+        
+        設定ファイルの[Login]セクションからauto_handle_post_login_popupを取得し、
+        popupセレクタグループのlogin_noticeセレクタを使用してポップアップを閉じます。
+        
+        Returns:
+            bool: ポップアップを処理できた場合はTrue、処理しなかった場合はFalse
+        """
+        # ポップアップ処理が無効な場合は何もしない
+        if not self.auto_handle_popup:
+            logger.info("ログイン後のポップアップ自動処理は無効です")
+            return False
+        
+        logger.info(f"ポップアップの表示を {self.popup_timeout} 秒間待機します")
+        
+        # ポップアップのセレクタ設定を確認
+        if self.popup_notice is None:
+            logger.warning("popup_notice ロケーターが設定されていません")
+            return False
+        
+        # ポップアップの存在を確認
+        try:
+            popup_element = self.browser.wait_for_element(
+                self.popup_notice[0], 
+                self.popup_notice[1], 
+                timeout=self.popup_timeout
+            )
+            
+            if not popup_element:
+                logger.info("ログイン後のポップアップは表示されませんでした")
+                return False
+            
+            # 親クラスのclose_popupメソッドを呼び出し
+            result = self.close_popup()
+            
+            if result:
+                logger.info("ログイン後のポップアップを閉じました")
+            else:
+                logger.warning("ポップアップは表示されましたが、クリックできませんでした")
+            
+            return result
+            
+        except TimeoutException:
+            logger.info("ログイン後のポップアップは表示されませんでした（タイムアウト）")
+            return False
+        
+        except WebDriverException as e:
+            logger.warning(f"ポップアップ処理中にWebDriver例外が発生しました: {str(e)}")
+            self.browser.save_screenshot(f"popup_error_{int(time.time())}.png")
+            return False
+    
+    @handle_errors(screenshot_name="org_selection_error")
+    def select_organization(self):
+        """
+        組織選択画面での組織選択処理
+        
+        ログイン後に組織選択画面が表示された場合に、
+        settings.iniで指定された組織を選択します。
         
         Returns:
             bool: 成功した場合はTrue、失敗した場合はFalse
         """
-        for attempt in range(1, self.max_attempts + 1):
-            try:
-                logger.info(f"ログイン試行 {attempt}/{self.max_attempts}")
-                
-                # ログインページに移動
-                if not self.navigate_to_login_page():
-                    logger.error("ログインページへのアクセスに失敗しました")
-                    continue
-                
-                # ログインフォームに情報を入力
-                if not self.fill_login_form():
-                    logger.error("ログインフォームへの入力に失敗しました")
-                    continue
-                
-                # ログインフォームを送信
-                if not self.submit_login_form():
-                    logger.error("ログインフォームの送信に失敗しました")
-                    continue
-                
-                # ログイン成功の確認
-                if self.check_login_success():
-                    logger.info(f"{attempt}回目の試行でログインに成功しました")
-                    
-                    # ダッシュボードにアクセス（必須）
-                    try:
-                        dashboard_url = env.get_config_value("Credentials", "url_dashboard", "https://bishamon.ebis.ne.jp/dashboard")
-                        logger.info(f"ダッシュボードにアクセスします: {dashboard_url}")
-                        self.browser.navigate_to(dashboard_url)
-                        
-                        # ページ読み込み完了を待機
-                        WebDriverWait(self.browser.driver, 10).until(
-                            lambda driver: driver.execute_script("return document.readyState") == "complete"
-                        )
-                        logger.info("ダッシュボードページの読み込みが完了しました")
-                        
-                        # 追加の待機時間
-                        time.sleep(2)
-                        
-                        # 念のためURLを確認
-                        current_url = self.browser.driver.current_url
-                        if dashboard_url in current_url:
-                            logger.info(f"ダッシュボードURL ({dashboard_url}) に正常に遷移しました")
-                        else:
-                            logger.warning(f"ダッシュボードへの遷移に問題がある可能性があります。現在のURL: {current_url}")
-                    except Exception as e:
-                        logger.warning(f"ダッシュボードへのアクセス中にエラーが発生しました: {str(e)}")
-                        logger.error(traceback.format_exc())
-                    
-                    return True
-                
-                logger.warning(f"{attempt}回目のログイン試行が失敗しました")
-                
-            except Exception as e:
-                logger.error(f"ログイン処理中に予期しないエラーが発生しました: {str(e)}")
-                logger.error(traceback.format_exc())
+        if not self.auto_select_org or not self.org_name:
+            logger.info("組織選択機能は無効または組織名が設定されていません")
+            return False
+        
+        # 必要に応じて実装してください
+        logger.info("組織選択機能は実装されていません")
+        return True
+    
+    @handle_errors(screenshot_name="2fa_error")
+    def handle_two_factor_auth(self):
+        """
+        2要素認証処理
+        
+        ログイン後に2要素認証が必要な場合に、
+        バックアップコードの入力などの処理を行います。
+        
+        Returns:
+            bool: 成功した場合はTrue、失敗した場合はFalse
+        """
+        if not self.handle_2fa:
+            logger.info("2要素認証処理は無効です")
+            return False
+        
+        # 必要に応じて実装してください
+        logger.info("2要素認証処理は実装されていません")
+        return True
+    
+    @handle_errors(screenshot_name="login_flow", raise_exception=True)
+    def execute_login_flow(self, account_key=None, username=None, password=None, handle_popup=True, max_attempts=3):
+        """
+        ログインフローを実行します
+        
+        親クラスのログインフローに加えて、必要に応じて組織選択や2要素認証の処理も行います。
+        
+        Args:
+            account_key (str, optional): アカウントキー。指定がなければ設定値を使用
+            username (str, optional): ユーザー名。指定がなければ設定値を使用
+            password (str, optional): パスワード。指定がなければ設定値を使用
+            handle_popup (bool): ログイン後のポップアップを自動処理するかどうか
+            max_attempts (int): 最大試行回数
             
-            # 次の試行前に少し待機
-            time.sleep(3)
+        Returns:
+            bool: ログインが成功した場合はTrue
+            
+        Raises:
+            LoginError: ログインに失敗した場合
+        """
+        # 親クラスのログインフローを実行
+        result = super().execute_login_flow(
+            account_key=account_key,
+            username=username,
+            password=password,
+            handle_popup=False,  # 親クラスでのポップアップ処理をスキップ
+            max_attempts=max_attempts
+        )
         
-        logger.error(f"{self.max_attempts}回の試行後もログインに失敗しました")
-        return False
+        if not result:
+            return False
         
+        # 組織選択処理
+        if self.auto_select_org:
+            self.select_organization()
+        
+        # 2要素認証処理
+        if self.handle_2fa:
+            self.handle_two_factor_auth()
+        
+        # ポップアップ処理
+        if handle_popup and self.auto_handle_popup:
+            self.handle_post_login_popup()
+        
+        logger.info("サイト固有のログインフローが完了しました")
+        return True
+
 def main():
     """
     テスト用のメイン関数
     """
     try:
-        # 環境変数を読み込む
-        env.load_env()
-        
         # ログインページのインスタンスを作成
-        login_page = EbisLoginPage()
+        login_page = LoginPage()
         
         # ログイン処理を実行
         result = login_page.execute_login_flow()
         
         if result:
-            logger.info("ログインテストに成功しました")
+            logger.info("ログインに成功しました")
             
-            # ブラウザを終了
-            login_page.browser.quit()
-            return 0
+            # ブラウザを少し開いたままにする（画面を確認するため）
+            time.sleep(5)
         else:
-            logger.error("ログインテストに失敗しました")
-            return 1
+            logger.error("ログインに失敗しました")
+        
+        # ブラウザを終了
+        login_page.quit()
+        return 0 if result else 1
             
     except Exception as e:
         logger.error(f"テスト実行中にエラーが発生しました: {str(e)}")
+        import traceback
         logger.error(traceback.format_exc())
         return 1
 

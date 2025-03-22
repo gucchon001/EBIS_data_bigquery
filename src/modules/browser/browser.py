@@ -359,6 +359,31 @@ class Browser:
             logger.error(traceback.format_exc())
             return False
     
+    def _get_by_type(self, selector_type):
+        """
+        セレクタタイプの文字列を Selenium の By クラスの定数に変換する
+        
+        Args:
+            selector_type (str): セレクタタイプの文字列 ('css', 'xpath', 'id', 'name', 'class')
+            
+        Returns:
+            By: Selenium の By クラスの定数。未対応のタイプの場合は None
+        """
+        selector_type = selector_type.lower()
+        if selector_type == 'id':
+            return By.ID
+        elif selector_type == 'css':
+            return By.CSS_SELECTOR
+        elif selector_type == 'xpath':
+            return By.XPATH
+        elif selector_type == 'name':
+            return By.NAME
+        elif selector_type == 'class':
+            return By.CLASS_NAME
+        else:
+            logger.warning(f"未対応のセレクタタイプです: {selector_type}")
+            return None
+
     def get_element(self, group, name, wait_time=None):
         """
         指定されたセレクタに一致する要素を取得する
@@ -386,20 +411,12 @@ class Browser:
         try:
             wait = WebDriverWait(self.driver, wait_time or self.timeout)
             
-            if selector_type.lower() == 'css':
-                element = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, selector_value)))
-            elif selector_type.lower() == 'xpath':
-                element = wait.until(EC.presence_of_element_located((By.XPATH, selector_value)))
-            elif selector_type.lower() == 'id':
-                element = wait.until(EC.presence_of_element_located((By.ID, selector_value)))
-            elif selector_type.lower() == 'name':
-                element = wait.until(EC.presence_of_element_located((By.NAME, selector_value)))
-            elif selector_type.lower() == 'class':
-                element = wait.until(EC.presence_of_element_located((By.CLASS_NAME, selector_value)))
-            else:
-                logger.error(f"未対応のセレクタタイプです: {selector_type}")
+            # _get_by_type メソッドを使用
+            by = self._get_by_type(selector_type)
+            if by is None:
                 return None
-            
+                
+            element = wait.until(EC.presence_of_element_located((by, selector_value)))
             return element
             
         except TimeoutException:
@@ -409,49 +426,75 @@ class Browser:
             logger.error(f"要素の取得中にエラーが発生しました: {str(e)}")
             return None
     
-    def save_screenshot(self, filename):
+    def save_screenshot(self, filename, append_timestamp=False, append_url=False, custom_dir=None):
         """
         スクリーンショットを保存する
         
         Args:
             filename (str): 保存するファイル名
+            append_timestamp (bool): ファイル名にタイムスタンプを追加するかどうか
+            append_url (bool): ファイル名にURLのハッシュを追加するかどうか
+            custom_dir (str): カスタムディレクトリ（指定しない場合は self.screenshot_dir を使用）
             
         Returns:
-            bool: 保存が成功した場合はTrue、失敗した場合はFalse
+            str: 保存されたファイルのパス。失敗した場合はNone
         """
         if not self.driver:
             logger.error("WebDriverが初期化されていません")
-            return False
+            return None
         
         # 自動スクリーンショットが無効化されている場合はスキップ
         if not self.auto_screenshot and not filename.startswith("error_"):
             logger.debug(f"自動スクリーンショットが無効化されているため、{filename} のキャプチャをスキップします")
-            return False
+            return None
         
         # エラー時のスクリーンショットが無効化されている場合、エラー関連のスクリーンショットをスキップ
         if not self.screenshot_on_error and filename.startswith("error_"):
             logger.debug(f"エラー時のスクリーンショットが無効化されているため、{filename} のキャプチャをスキップします")
-            return False
+            return None
         
         try:
-            # ファイル名に拡張子がない場合は設定された形式を追加
-            if not filename.endswith(f".{self.screenshot_format}") and "." not in filename:
-                filename = f"{filename}.{self.screenshot_format}"
+            # タイムスタンプ
+            timestamp = ""
+            if append_timestamp:
+                timestamp = f"_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             
-            filepath = os.path.join(self.screenshot_dir, filename)
+            # URLハッシュ（オプション）
+            url_hash = ""
+            if append_url and self.driver:
+                try:
+                    current_url = self.driver.current_url
+                    # URLから不要な部分を取り除いてハッシュ化
+                    url_clean = re.sub(r'https?://', '', current_url)
+                    url_clean = re.sub(r'[^\w]', '_', url_clean)
+                    url_hash = f"_{url_clean[:20]}"  # 最初の20文字だけ使用
+                except:
+                    pass
             
-            # 画像形式に応じて適切な保存方法を使用
-            if self.screenshot_format.lower() == "png":
-                self.driver.save_screenshot(filepath)
-            else:
-                # 他の形式の場合、一時的にPNGとして保存してから変換することも可能
-                self.driver.save_screenshot(filepath)
+            # 拡張子の処理
+            base_name, ext = os.path.splitext(filename)
+            if not ext:
+                ext = f".{self.screenshot_format}"
+            
+            # 最終的なファイル名を構築
+            final_filename = f"{base_name}{timestamp}{url_hash}{ext}"
+            
+            # 保存先ディレクトリを決定
+            save_dir = custom_dir if custom_dir else self.screenshot_dir
+            os.makedirs(save_dir, exist_ok=True)
+            
+            # フルパスを構築
+            filepath = os.path.join(save_dir, final_filename)
+            
+            # スクリーンショットを撮影
+            self.driver.save_screenshot(filepath)
             
             logger.debug(f"スクリーンショットを保存しました: {filepath}")
-            return True
+            return filepath
+            
         except Exception as e:
             logger.error(f"スクリーンショットの保存中にエラーが発生しました: {str(e)}")
-            return False
+            return None
     
     def analyze_page_content(self, html_content):
         """
@@ -512,7 +555,44 @@ class Browser:
             logger.error(f"ページ内容の解析中にエラーが発生しました: {str(e)}")
             return result
     
-    def click_element(self, group, name, use_javascript=False, wait_time=None):
+    def scroll_to_element(self, element, position="center", smooth=True):
+        """
+        要素が画面内に表示されるようにスクロールする
+        
+        Args:
+            element (WebElement): スクロール対象の要素
+            position (str): スクロール位置（"start", "center", "end", "nearest"）
+            smooth (bool): スムーズスクロールを使用するかどうか
+            
+        Returns:
+            bool: スクロールが成功した場合はTrue、失敗した場合はFalse
+        """
+        try:
+            if not self.driver:
+                logger.error("WebDriverが初期化されていません")
+                return False
+                
+            # スムーズスクロールのオプション
+            behavior = "smooth" if smooth else "auto"
+            
+            self.driver.execute_script(
+                f"arguments[0].scrollIntoView({{behavior: '{behavior}', block: '{position}'}});", 
+                element
+            )
+            
+            # スクロール完了を待機（スムーズスクロールの場合は少し長めに）
+            time.sleep(1 if smooth else 0.5)
+            
+            # デバッグ用の情報を記録
+            logger.debug(f"要素にスクロールしました: position={position}, smooth={smooth}")
+            return True
+            
+        except Exception as e:
+            error_message = "要素へのスクロール中にエラーが発生しました"
+            self._notify_error(error_message, e)
+            return False
+
+    def click_element(self, group, name, use_javascript=False, wait_time=None, ensure_visible=True, retry_count=1):
         """
         指定された要素をクリックする
         
@@ -521,47 +601,140 @@ class Browser:
             name (str): セレクタの名前
             use_javascript (bool): JavaScriptを使用してクリックするかどうか
             wait_time (int, optional): 要素を待機する時間（秒）
+            ensure_visible (bool): 要素が表示されていることを確認するかどうか
+            retry_count (int): 失敗時のリトライ回数
             
         Returns:
             bool: クリックが成功した場合はTrue、失敗した場合はFalse
         """
         try:
+            # 要素を取得
             element = self.get_element(group, name, wait_time)
             if not element:
                 logger.error(f"クリック対象の要素が見つかりません: {group}.{name}")
                 return False
             
+            # 要素が表示されていることを確認
+            if ensure_visible and not element.is_displayed():
+                logger.warning(f"要素は存在しますが表示されていません: {group}.{name}")
+                # 強制的に表示するか、JavaScriptでクリックするオプションを設定
+                use_javascript = True
+            
             # 要素が画面内に表示されるようにスクロール
-            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", element)
-            time.sleep(1)  # スクロール完了を待機
+            self.scroll_to_element(element)
             
             # クリック実行
-            if use_javascript:
-                logger.info(f"JavaScriptを使用して要素をクリックします: {group}.{name}")
-                self.driver.execute_script("arguments[0].click();", element)
-            else:
-                logger.info(f"要素をクリックします: {group}.{name}")
-                element.click()
+            success = False
+            attempts = 0
             
-            logger.info(f"✓ 要素のクリックに成功しました: {group}.{name}")
-            return True
+            while not success and attempts <= retry_count:
+                try:
+                    if use_javascript:
+                        logger.info(f"JavaScriptを使用して要素をクリックします: {group}.{name}")
+                        self.driver.execute_script("arguments[0].click();", element)
+                    else:
+                        logger.info(f"要素をクリックします: {group}.{name}")
+                        element.click()
+                    
+                    success = True
+                except Exception as click_e:
+                    attempts += 1
+                    logger.warning(f"クリック試行 {attempts}/{retry_count + 1} が失敗しました: {str(click_e)}")
+                    
+                    # 最後の試行では通常と反対の方法を試す
+                    if attempts <= retry_count:
+                        if not use_javascript and attempts == retry_count:
+                            logger.info("JavaScriptを使用したクリックを試みます")
+                            use_javascript = True
+                            time.sleep(0.5)  # 少し待機してから再試行
+                        elif use_javascript and attempts == retry_count:
+                            logger.info("通常のクリックを試みます")
+                            use_javascript = False
+                            time.sleep(0.5)  # 少し待機してから再試行
+            
+            if success:
+                logger.info(f"✓ 要素のクリックに成功しました: {group}.{name}")
+                return True
+            else:
+                logger.error(f"すべてのクリック試行が失敗しました: {group}.{name}")
+                return False
             
         except Exception as e:
             logger.error(f"要素のクリック中にエラーが発生しました: {group}.{name}, エラー: {str(e)}")
             self.save_screenshot(f"click_error_{group}_{name}.png")
+            return False
+
+    def click_element_by_xpath(self, xpath, use_javascript=False, wait_time=None, ensure_visible=True, retry_count=1):
+        """
+        XPathで指定された要素をクリックする
+        
+        Args:
+            xpath (str): 要素のXPath
+            use_javascript (bool): JavaScriptを使用してクリックするかどうか
+            wait_time (int, optional): 要素を待機する時間（秒）
+            ensure_visible (bool): 要素が表示されていることを確認するかどうか
+            retry_count (int): 失敗時のリトライ回数
             
-            # JavaScriptでのクリックを試行（通常のクリックが失敗した場合）
-            if not use_javascript:
+        Returns:
+            bool: クリックが成功した場合はTrue、失敗した場合はFalse
+        """
+        try:
+            # 要素を待機して取得
+            wait_timeout = wait_time or self.timeout
+            element = self.wait_for_element(By.XPATH, xpath, timeout=wait_timeout)
+            
+            if not element:
+                logger.error(f"クリック対象の要素が見つかりません: XPath={xpath}")
+                return False
+            
+            # 要素が表示されていることを確認
+            if ensure_visible and not element.is_displayed():
+                logger.warning(f"要素は存在しますが表示されていません: XPath={xpath}")
+                # 強制的に表示するか、JavaScriptでクリックするオプションを設定
+                use_javascript = True
+            
+            # 要素が画面内に表示されるようにスクロール
+            self.scroll_to_element(element)
+            
+            # クリック実行
+            success = False
+            attempts = 0
+            
+            while not success and attempts <= retry_count:
                 try:
-                    logger.info(f"通常のクリックが失敗したため、JavaScriptでクリックを試みます: {group}.{name}")
-                    element = self.get_element(group, name, wait_time)
-                    if element:
+                    if use_javascript:
+                        logger.info(f"JavaScriptを使用して要素をクリックします: XPath={xpath}")
                         self.driver.execute_script("arguments[0].click();", element)
-                        logger.info(f"✓ JavaScriptを使用した要素のクリックに成功しました: {group}.{name}")
-                        return True
-                except Exception as js_e:
-                    logger.error(f"JavaScriptを使用した要素のクリックにも失敗しました: {str(js_e)}")
+                    else:
+                        logger.info(f"要素をクリックします: XPath={xpath}")
+                        element.click()
+                    
+                    success = True
+                except Exception as click_e:
+                    attempts += 1
+                    logger.warning(f"クリック試行 {attempts}/{retry_count + 1} が失敗しました: {str(click_e)}")
+                    
+                    # 最後の試行では通常と反対の方法を試す
+                    if attempts <= retry_count:
+                        if not use_javascript and attempts == retry_count:
+                            logger.info("JavaScriptを使用したクリックを試みます")
+                            use_javascript = True
+                            time.sleep(0.5)  # 少し待機してから再試行
+                        elif use_javascript and attempts == retry_count:
+                            logger.info("通常のクリックを試みます")
+                            use_javascript = False
+                            time.sleep(0.5)  # 少し待機してから再試行
             
+            if success:
+                logger.info(f"✓ 要素のクリックに成功しました: XPath={xpath}")
+                return True
+            else:
+                logger.error(f"すべてのクリック試行が失敗しました: XPath={xpath}")
+                return False
+            
+        except Exception as e:
+            logger.error(f"要素のクリック中にエラーが発生しました: XPath={xpath}, エラー: {str(e)}")
+            self.save_screenshot(f"click_error_xpath.png")
             return False
     
     def switch_to_new_window(self, current_handles=None, timeout=10, retries=3):
@@ -789,21 +962,45 @@ class Browser:
 
     def get_current_url(self):
         """
-        現在のページのURLを取得する
-        
+        現在のURLを取得する
+
         Returns:
-            str: 現在のURL。エラーが発生した場合は空文字列
+            str: 現在のURL
         """
         try:
-            if not self.driver:
-                logger.error("WebDriverが初期化されていません")
-                return ""
             return self.driver.current_url
         except Exception as e:
-            error_message = "URL取得中にエラーが発生しました"
-            self._notify_error(error_message, e)
-            return ""
-
+            logger.error(f"現在のURLの取得に失敗しました: {str(e)}")
+            return None
+    
+    def wait_for_page_load(self, timeout=None):
+        """
+        ページの読み込みが完了するのを待機する
+        
+        Args:
+            timeout (int, optional): タイムアウト秒数。デフォルトはインスタンス初期化時の値
+            
+        Returns:
+            bool: 成功した場合はTrue
+        """
+        if timeout is None:
+            timeout = self.timeout
+            
+        try:
+            # document.readyStateがcompleteになるまで待機
+            WebDriverWait(self.driver, timeout).until(
+                lambda driver: driver.execute_script("return document.readyState") == "complete"
+            )
+            
+            # JavaScriptによる非同期処理の完了を確認（オプション）
+            self.driver.execute_script("return (typeof jQuery === 'undefined' || jQuery.active === 0)")
+            
+            logger.info("ページ読み込みが完了しました")
+            return True
+        except Exception as e:
+            logger.warning(f"ページ読み込み待機中にエラーが発生しました: {str(e)}")
+            return False
+    
     def get_page_title(self):
         """
         現在のページのタイトルを取得する
@@ -841,29 +1038,6 @@ class Browser:
             error_message = "JavaScriptの実行中にエラーが発生しました"
             self._notify_error(error_message, e)
             return None
-
-    def scroll_to_element(self, element, position="center"):
-        """
-        要素が画面内に表示されるようにスクロールする
-        
-        Args:
-            element (WebElement): スクロール対象の要素
-            position (str): スクロール位置（"start", "center", "end", "nearest"）
-            
-        Returns:
-            bool: スクロールが成功した場合はTrue、失敗した場合はFalse
-        """
-        try:
-            if not self.driver:
-                logger.error("WebDriverが初期化されていません")
-                return False
-            self.driver.execute_script(f"arguments[0].scrollIntoView({{block: '{position}'}});", element)
-            time.sleep(1)  # スクロール完了を待機
-            return True
-        except Exception as e:
-            error_message = "要素へのスクロール中にエラーが発生しました"
-            self._notify_error(error_message, e)
-            return False
 
     def find_elements(self, by, value):
         """
@@ -949,6 +1123,88 @@ class Browser:
             error_message = f"要素の待機中にエラーが発生しました: {by}={value}"
             self._notify_error(error_message, e)
             return None
+
+    def input_text(self, locator, text, clear_first=True):
+        """
+        指定されたロケーターで要素を見つけ、テキストを入力する
+        
+        Args:
+            locator (tuple): (By.XX, "value") 形式のロケーター
+            text (str): 入力するテキスト
+            clear_first (bool): 入力前にフィールドをクリアするかどうか
+            
+        Returns:
+            bool: 成功した場合はTrue、失敗した場合はFalse
+        """
+        try:
+            if not self.driver:
+                logger.error("WebDriverが初期化されていません")
+                return False
+            
+            by, value = locator
+            element = self.wait_for_element(by, value)
+            
+            if not element:
+                logger.error(f"入力対象の要素が見つかりません: {by}={value}")
+                self.save_screenshot(f"input_error_{value.replace('/', '_')}.png")
+                return False
+            
+            # 要素が表示されるようにスクロール
+            self.scroll_to_element(element)
+            
+            # フィールドをクリア
+            if clear_first:
+                element.clear()
+            
+            # テキストを入力
+            element.send_keys(text)
+            logger.debug(f"テキストを入力しました: {text[:2]}{'*' * (len(text) - 4) if len(text) > 4 else '*' * len(text)}{text[-2:] if len(text) > 4 else ''}")
+            return True
+            
+        except Exception as e:
+            error_message = f"テキスト入力中にエラーが発生しました: {by}={value}"
+            logger.error(f"{error_message}: {str(e)}")
+            self.save_screenshot(f"input_error_{value.replace('/', '_')}.png")
+            return False
+    
+    def input_text_by_selector(self, group, name, text, clear_first=True):
+        """
+        セレクタ情報を使用して要素を見つけ、テキストを入力する
+        
+        Args:
+            group (str): セレクタのグループ名
+            name (str): セレクタの名前
+            text (str): 入力するテキスト
+            clear_first (bool): 入力前にフィールドをクリアするかどうか
+            
+        Returns:
+            bool: 成功した場合はTrue、失敗した場合はFalse
+        """
+        try:
+            if not self.driver:
+                logger.error("WebDriverが初期化されていません")
+                return False
+            
+            if group not in self.selectors or name not in self.selectors[group]:
+                logger.error(f"セレクタが見つかりません: {group}.{name}")
+                return False
+            
+            selector_info = self.selectors[group][name]
+            selector_type = selector_info['selector_type']
+            selector_value = selector_info['selector_value']
+            
+            # _get_by_type メソッドを使用
+            by = self._get_by_type(selector_type)
+            if by is None:
+                return False
+            
+            return self.input_text((by, selector_value), text, clear_first)
+            
+        except Exception as e:
+            error_message = f"テキスト入力中にエラーが発生しました: {group}.{name}"
+            logger.error(f"{error_message}: {str(e)}")
+            self.save_screenshot(f"input_error_{group}_{name}.png")
+            return False
 
     def get_chrome_version(self):
         """
