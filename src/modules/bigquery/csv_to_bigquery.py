@@ -12,6 +12,8 @@ import sys
 import argparse
 import logging
 import tempfile
+import uuid
+import pandas as pd
 from src.modules.bigquery.convert_csv_to_json import convert_csv_to_json
 from src.modules.bigquery.load_to_bigquery_fixed import load_data_to_bigquery
 from src.modules.bigquery.upsert_to_bigquery import upsert_data_to_bigquery
@@ -25,88 +27,92 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def process_csv_to_bigquery(csv_file, table_name, nrows=None, write_disposition='WRITE_TRUNCATE', 
-                           upsert=True, key_column='応募ID', encoding='cp932'):
+                           upsert=True, key_column='応募ID', encoding='auto'):
     """
-    CSVファイルをJSONに変換し、BigQueryテーブルにロードする一連の処理を行う
+    CSVファイルをBigQueryテーブルに読み込む処理フローを実行します
     
     Args:
-        csv_file (str): 入力CSVファイルのパス
-        table_name (str): ロード先のテーブル名（形式: データセット.テーブル）
-        nrows (int, optional): 処理する行数（デフォルト: 全行）
-        write_disposition (str, optional): 書き込み方法（デフォルト: WRITE_TRUNCATE）
-        upsert (bool, optional): アップサート（更新/挿入）を行うかどうか（デフォルト: True）
-        key_column (str, optional): アップサート時のキーカラム名（デフォルト: 応募ID）
-        encoding (str, optional): CSVファイルのエンコーディング（デフォルト: cp932）
+        csv_file: 入力CSVファイルのパス
+        table_name: ロード先のテーブル名（形式: データセット.テーブル）
+        nrows: 読み込む行数（None=全行）
+        write_disposition: アップサートしない場合の書き込み方法
+        upsert: アップサートモードで実行するかどうか（Trueの場合）
+        key_column: アップサートのキーカラム名（デフォルトは応募ID）
+        encoding: CSVファイルのエンコーディング ('auto'の場合は自動判定)
         
     Returns:
         bool: 処理が成功した場合はTrue、失敗した場合はFalse
     """
-    try:
-        # 環境変数の読み込み
-        env.load_env()
-        
-        # CSVファイルの存在確認
-        if not os.path.exists(csv_file):
-            logger.error(f"CSVファイル '{csv_file}' が見つかりません")
-            return False
-            
-        # 一時JSONファイル用のパス
-        with tempfile.NamedTemporaryFile(suffix='.json', delete=False) as tmp:
-            temp_json_file = tmp.name
-        
-        try:
-            # ステップ1: CSVファイルをJSONに変換
-            logger.info("ステップ1: CSVファイルをJSONに変換します")
-            json_file = convert_csv_to_json(
-                csv_file=csv_file,
-                json_file=temp_json_file,
-                encoding=encoding,
-                nrows=nrows,
-                orient='records',
-                lines=True
-            )
-            
-            if not json_file:
-                logger.error("CSVからJSONへの変換に失敗しました")
-                return False
-                
-            # ステップ2: JSONファイルをBigQueryにロード
-            logger.info("ステップ2: JSONファイルをBigQueryにロードします")
-            if upsert:
-                # アップサート（更新/挿入）モード
-                logger.info(f"アップサートモード（キー: {key_column}）でロードします")
-                success = upsert_data_to_bigquery(
-                    file_path=json_file,
-                    table_name=table_name,
-                    key_column=key_column
-                )
-            else:
-                # 通常のロードモード
-                logger.info(f"通常モード（{write_disposition}）でロードします")
-                success = load_data_to_bigquery(
-                    file_path=json_file,
-                    table_name=table_name,
-                    write_disposition=write_disposition
-                )
-                
-            if not success:
-                logger.error("BigQueryへのデータロードに失敗しました")
-                return False
-                
-            logger.info(f"CSVデータをテーブル '{table_name}' に正常にロードしました")
-            return True
-            
-        finally:
-            # 一時JSONファイルの削除
-            if os.path.exists(temp_json_file):
-                try:
-                    os.remove(temp_json_file)
-                    logger.info(f"一時JSONファイル '{temp_json_file}' を削除しました")
-                except Exception as e:
-                    logger.warning(f"一時JSONファイルの削除に失敗しました: {e}")
+    logger.info("ステップ1: CSVファイルをJSONに変換します")
+    # 一時JSONファイルを作成
+    temp_json = os.path.join(tempfile.gettempdir(), f"tmp{uuid.uuid4().hex[:8]}.json")
     
+    try:
+        # エンコーディングの自動判定
+        csv_encoding = encoding
+        if encoding == 'auto':
+            try:
+                # まずUTF-8で試す
+                with open(csv_file, 'r', encoding='utf-8') as f:
+                    f.read(1024)  # 先頭の一部だけ読み込む
+                csv_encoding = 'utf-8'
+                logger.info(f"エンコーディングをUTF-8と判定しました")
+            except UnicodeDecodeError:
+                try:
+                    # UTF-8で失敗した場合はcp932（Shift-JIS）で試す
+                    with open(csv_file, 'r', encoding='cp932') as f:
+                        f.read(1024)
+                    csv_encoding = 'cp932'
+                    logger.info(f"エンコーディングをcp932（Shift-JIS）と判定しました")
+                except UnicodeDecodeError:
+                    # それでも失敗する場合はlatin1（どんなバイト列も読める）でフォールバック
+                    csv_encoding = 'latin1'
+                    logger.info(f"エンコーディングの自動判定に失敗しました。latin1でフォールバックします")
+        
+        # CSVをJSONに変換
+        try:
+            convert_csv_to_json(csv_file, temp_json, encoding=csv_encoding, nrows=nrows)
+        except Exception as e:
+            logger.error(f"CSVからJSONへの変換に失敗しました: {str(e)}")
+            # エラー詳細を出力
+            import traceback
+            logger.error(f"エラー詳細: {traceback.format_exc()}")
+            return False
+        
+        logger.info("ステップ2: JSONファイルをBigQueryにロードします")
+        
+        if upsert:
+            # アップサートモードで実行
+            logger.info(f"アップサートモード（キー: {key_column}）でロードします")
+            result = upsert_data_to_bigquery(temp_json, table_name, key_column)
+        else:
+            # 通常モードで実行
+            logger.info(f"通常モード（{write_disposition}）でロードします")
+            result = load_data_to_bigquery(temp_json, table_name, write_disposition)
+        
+        if result:
+            logger.info(f"CSVデータをテーブル '{table_name}' に正常にロードしました")
+        else:
+            logger.error(f"BigQueryへのデータロードに失敗しました")
+            
+        # 一時ファイルの削除
+        if os.path.exists(temp_json):
+            os.remove(temp_json)
+            logger.info(f"一時JSONファイル '{temp_json}' を削除しました")
+            
+        return result
     except Exception as e:
-        logger.error(f"処理中にエラーが発生しました: {e}")
+        logger.error(f"処理中にエラーが発生しました: {str(e)}")
+        # エラー詳細を出力
+        import traceback
+        logger.error(f"エラー詳細: {traceback.format_exc()}")
+        
+        # 一時ファイルの削除
+        if os.path.exists(temp_json):
+            os.remove(temp_json)
+            logger.info(f"一時JSONファイル '{temp_json}' を削除しました")
+            
+        logger.error("処理に失敗しました")
         return False
 
 def main():
@@ -120,7 +126,7 @@ def main():
                         default='WRITE_TRUNCATE', help='書き込み方法（デフォルト: WRITE_TRUNCATE、upsert=Falseの場合のみ使用）')
     parser.add_argument('--no-upsert', action='store_true', help='通常モード（アップサートを使用しない）')
     parser.add_argument('--key-column', default='応募ID', help='アップサート時のキーカラム名（デフォルト: 応募ID）')
-    parser.add_argument('--encoding', default='cp932', help='CSVファイルのエンコーディング（デフォルト: cp932）')
+    parser.add_argument('--encoding', default='auto', help='CSVファイルのエンコーディング（デフォルト: auto）')
     parser.add_argument('--env-file', default='config/secrets.env', help='環境変数ファイルのパス（デフォルト: config/secrets.env）')
     
     args = parser.parse_args()

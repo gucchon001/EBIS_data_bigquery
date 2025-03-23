@@ -20,6 +20,8 @@ from google.cloud import bigquery
 from google.cloud.exceptions import NotFound
 from dotenv import load_dotenv
 from src.utils.environment import EnvironmentUtils as env
+import numpy as np
+import re
 
 # ロガーの設定
 logging.basicConfig(
@@ -82,7 +84,7 @@ def normalize_column_name(column_name):
     """
     # 括弧や特殊文字をアンダースコアに置き換える
     if isinstance(column_name, str):
-        normalized = column_name.replace('(', '_').replace(')', '').replace(':', '_').replace(' ', '_')
+        normalized = column_name.replace('(', '_').replace(')', '').replace('（', '_').replace('）', '').replace(':', '_').replace(' ', '_')
         return normalized
     return column_name
 
@@ -118,7 +120,7 @@ def adjust_data_to_schema(df, schema):
     """
     if schema is None:
         return df
-    
+        
     # スキーマのカラム名リストを作成
     schema_columns = [field.name for field in schema]
     logger.info(f"スキーマのカラム: {len(schema_columns)}個")
@@ -141,6 +143,10 @@ def adjust_data_to_schema(df, schema):
                 logger.info(f"カラム '{field.name}' をDATE型に変換します")
                 # 日付文字列をDATE型に変換
                 df[field.name] = df[field.name].apply(lambda x: convert_date_format(x) if pd.notna(x) else None)
+            elif field.field_type == 'INTEGER':
+                logger.info(f"カラム '{field.name}' をINTEGER型に変換します")
+                # 整数型に変換（小数点以下切り捨て）
+                df[field.name] = df[field.name].apply(clean_integer_value)
     
     # スキーマにないカラムを削除
     excess_columns = [col for col in df.columns if col not in schema_columns]
@@ -153,36 +159,119 @@ def adjust_data_to_schema(df, schema):
     
     return df
 
-def process_date_columns(df):
+def process_data_columns(df):
     """
-    データフレーム内の日付カラムを明示的に処理する
+    データフレーム内の日付およびINTEGER型と思われるカラムを処理する
     
     Args:
         df: 処理対象のデータフレーム
-    
+        
     Returns:
-        pandas.DataFrame: 日付カラムが処理されたデータフレーム
+        pandas.DataFrame: 処理後のデータフレーム
     """
-    # 処理対象のタイムスタンプカラム
-    timestamp_columns = [
-        'CV時間', '直接効果_発生日時', '間接効果2_発生日時', '間接効果3_発生日時',
-        '間接効果4_発生日時', '間接効果5_発生日時', '間接効果6_発生日時',
-        '間接効果7_発生日時', '間接効果8_発生日時', '間接効果9_発生日時',
-        '間接効果10_発生日時', '初回接触_発生日時'
+    date_patterns = [
+        r'^\d{4}[-/]\d{1,2}[-/]\d{1,2}$',  # YYYY-MM-DD or YYYY/MM/DD
+        r'^\d{1,2}[-/]\d{1,2}[-/]\d{4}$',  # DD-MM-YYYY or DD/MM/YYYY
+        r'^\d{1,2}[-/]\d{1,2}[-/]\d{2}$'   # DD-MM-YY or DD/MM/YY
     ]
     
-    # 各タイムスタンプカラムを処理
-    for col in timestamp_columns:
-        if col in df.columns:
+    timestamp_patterns = [
+        r'^\d{4}[-/]\d{1,2}[-/]\d{1,2}\s\d{1,2}:\d{1,2}:\d{1,2}$',  # YYYY-MM-DD HH:MM:SS
+        r'^\d{4}[-/]\d{1,2}[-/]\d{1,2}\s\d{1,2}:\d{1,2}$',          # YYYY-MM-DD HH:MM
+        r'^\d{1,2}[-/]\d{1,2}[-/]\d{4}\s\d{1,2}:\d{1,2}:\d{1,2}$',  # DD-MM-YYYY HH:MM:SS
+        r'^\d{1,2}[-/]\d{1,2}[-/]\d{4}\s\d{1,2}:\d{1,2}$'           # DD-MM-YYYY HH:MM
+    ]
+    
+    # カラム名検出パターン
+    date_column_patterns = ['date', 'dt', '日付', '日時', '年月日']
+    timestamp_column_patterns = ['time', 'timestamp', '時間', '日時']
+    integer_column_patterns = ['id', 'count', 'num', 'number', '数', '回数', '期間_秒', '秒']
+    
+    # 各カラムを処理
+    for col in df.columns:
+        col_lower = col.lower()
+        
+        # 1. タイムスタンプと思われるカラムを処理
+        if any(pattern in col_lower for pattern in timestamp_column_patterns) or '時間' in col:
+            # サンプルデータをチェック
+            sample = df[col].dropna().head(10)
+            if len(sample) > 0 and any(re.match(pattern, str(s)) for s in sample for pattern in timestamp_patterns):
+                logger.info(f"タイムスタンプと思われるカラム '{col}' を処理します")
+                try:
+                    df[col] = pd.to_datetime(df[col], errors='coerce')
+                    df[col] = df[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+                except Exception as e:
+                    logger.warning(f"タイムスタンプ変換中にエラーが発生しました: {e}, カラム: {col}")
+        
+        # 2. 日付と思われるカラムを処理
+        elif any(pattern in col_lower for pattern in date_column_patterns):
+            # サンプルデータをチェック
+            sample = df[col].dropna().head(10)
+            if len(sample) > 0 and any(re.match(pattern, str(s)) for s in sample for pattern in date_patterns):
+                logger.info(f"日付と思われるカラム '{col}' を処理します")
+                try:
+                    df[col] = pd.to_datetime(df[col], errors='coerce')
+                    df[col] = df[col].dt.strftime('%Y-%m-%d')
+                except Exception as e:
+                    logger.warning(f"日付変換中にエラーが発生しました: {e}, カラム: {col}")
+        
+        # 3. 整数型と思われるカラムを処理
+        elif any(pattern in col_lower for pattern in integer_column_patterns) or '回数' in col or '秒' in col:
+            logger.info(f"整数型と思われるカラム '{col}' を処理します")
             try:
-                logger.info(f"カラム '{col}' を明示的に変換します")
-                # pd.to_datetimeを使用して日付を変換し、その後文字列に戻す
-                df[col] = pd.to_datetime(df[col], errors='coerce')
-                df[col] = df[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+                df[col] = df[col].apply(clean_integer_value)
             except Exception as e:
-                logger.warning(f"カラム '{col}' の変換中にエラーが発生しました: {e}")
+                logger.warning(f"整数変換中にエラーが発生しました: {e}, カラム: {col}")
     
     return df
+
+def clean_integer_value(value):
+    """
+    数値として扱われるべき文字列をクリーニングして整数に変換する
+    すべての小数点以下は切り捨てられる
+    
+    Args:
+        value: 変換対象の値
+        
+    Returns:
+        int or None: クリーニングされた整数値。変換できない場合はNone
+    """
+    if pd.isna(value):
+        return None
+    
+    # 整数型の場合はそのまま返す
+    if isinstance(value, int):
+        return value
+    
+    # 浮動小数点型の場合は小数点以下を切り捨て
+    if isinstance(value, float):
+        # 無限大や NaN は None に変換
+        if not np.isfinite(value):
+            return None
+        # 小数点以下を切り捨てて整数に変換
+        return int(value)
+    
+    try:
+        if isinstance(value, str):
+            # 空文字列や空白のみの場合はNone
+            if not value.strip():
+                return None
+                
+            # バックスラッシュ、カンマ、ダブルクォーテーションを削除
+            clean_value = value.replace('\\', '').replace(',', '').replace('"', '')
+            
+            # 数値に変換できるかチェック
+            if clean_value.strip():
+                # 小数点を含む場合も含めて浮動小数点数として処理し、整数に変換
+                try:
+                    return int(float(clean_value))
+                except ValueError:
+                    logger.warning(f"数値として解析できない値です: '{clean_value}'（元の値: '{value}'）")
+                    return None
+    except Exception as e:
+        logger.warning(f"整数への変換に失敗しました: {e}, 値: '{value}'")
+    
+    return None
 
 def load_data_to_bigquery(file_path, table_name, write_disposition='WRITE_TRUNCATE'):
     """
@@ -256,7 +345,7 @@ def load_data_to_bigquery(file_path, table_name, write_disposition='WRITE_TRUNCA
             df = adjust_data_to_schema(df, schema)
         
         # 日付カラムを明示的に処理
-        df = process_date_columns(df)
+        df = process_data_columns(df)
         
         # 一時ファイルにデータを保存
         df.to_json(temp_file, orient='records', lines=True, force_ascii=False)

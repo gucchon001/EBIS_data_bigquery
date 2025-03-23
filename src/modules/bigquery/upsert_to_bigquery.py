@@ -14,10 +14,12 @@ import logging
 import pandas as pd
 import uuid
 import time
+import numpy as np
 from google.cloud import bigquery
 from google.cloud.exceptions import NotFound
 from src.utils.environment import EnvironmentUtils as env
-from src.modules.bigquery.load_to_bigquery_fixed import convert_date_format, normalize_column_name, process_date_columns
+from src.modules.bigquery.load_to_bigquery_fixed import convert_date_format, normalize_column_name, process_data_columns
+import re
 
 # ロガーの設定
 logging.basicConfig(
@@ -26,38 +28,240 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def clean_integer_value(value):
+    """
+    数値として扱われるべき文字列をクリーニングして整数に変換する
+    すべての小数点以下は切り捨てられる
+    
+    Args:
+        value: 変換対象の値
+        
+    Returns:
+        int or None: クリーニングされた整数値。変換できない場合はNone
+    """
+    if pd.isna(value):
+        return None
+    
+    # 整数型の場合はそのまま返す
+    if isinstance(value, int):
+        return value
+    
+    # 浮動小数点型の場合は小数点以下を切り捨て
+    if isinstance(value, float):
+        # 無限大や NaN は None に変換
+        if not np.isfinite(value):
+            return None
+        # 小数点以下を切り捨てて整数に変換
+        return int(value)
+    
+    try:
+        if isinstance(value, str):
+            # 空文字列や空白のみの場合はNone
+            if not value.strip() or value.lower() in ['undefined', 'null', 'none', '']:
+                return None
+            
+            # カラム名やヘッダー行の場合はNoneを返す
+            if any(keyword in value.lower() for keyword in ['名', 'id', 'カラム', 'ユーザー']):
+                return None
+            
+            # JSONの特殊フォーマット（'number_value: "1.0"'）を処理
+            if 'number_value:' in value:
+                # より柔軟な正規表現パターンを使用して数値部分を抽出
+                logger.debug(f"number_value形式の処理: '{value}'")
+                match = re.search(r'number_value:\s*"?([^"]+)"?', value)
+                if match:
+                    clean_value = match.group(1).strip()
+                    logger.debug(f"抽出された数値文字列: '{clean_value}'")
+                    try:
+                        # カンマを削除し、浮動小数点数に変換
+                        clean_value = clean_value.replace(',', '')
+                        float_val = float(clean_value)
+                        logger.debug(f"浮動小数点数に変換: {float_val}")
+                        
+                        # 浮動小数点数を整数に変換（小数点以下を切り捨て）
+                        if np.isfinite(float_val):
+                            int_val = int(float_val)
+                            logger.debug(f"整数に変換: {int_val}")
+                            return int_val
+                        return None
+                    except ValueError as ve:
+                        logger.warning(f"数値として解析できない値です: '{clean_value}'（元の値: '{value}'）、エラー: {ve}")
+                        return None
+                else:
+                    # フォーマットが期待通りでない場合、より詳細なデバッグ情報
+                    logger.warning(f"number_value形式が不正: '{value}'、パターンマッチに失敗")
+                    
+                    # 代替パターンで再試行
+                    alt_match = re.search(r'number_value:(.+)', value)
+                    if alt_match:
+                        alt_value = alt_match.group(1).strip().replace('"', '').replace("'", "")
+                        logger.debug(f"代替パターンで抽出された値: '{alt_value}'")
+                        try:
+                            # 代替方法で数値変換を試みる
+                            alt_value = alt_value.replace(',', '')
+                            float_val = float(alt_value)
+                            if np.isfinite(float_val):
+                                int_val = int(float_val)
+                                logger.debug(f"代替処理で整数に変換: {int_val}")
+                                return int_val
+                        except ValueError:
+                            pass
+                    
+                    return None
+                
+            # バックスラッシュ、カンマ、ダブルクォーテーションを削除
+            clean_value = value.replace('\\', '').replace(',', '').replace('"', '').strip()
+            
+            # 数値に変換できるかチェック
+            if clean_value:
+                # 小数点を含む場合も含めて浮動小数点数として処理し、整数に変換
+                try:
+                    # デバッグ情報
+                    logger.debug(f"整数変換を試みる値: '{clean_value}'")
+                    float_val = float(clean_value)
+                    if np.isfinite(float_val):
+                        int_val = int(float_val)
+                        logger.debug(f"浮動小数点 {float_val} から整数 {int_val} に変換")
+                        return int_val
+                    return None
+                except ValueError as ve:
+                    logger.warning(f"数値として解析できない値です: '{clean_value}'（元の値: '{value}'）、エラー: {ve}")
+                    return None
+    except Exception as e:
+        logger.warning(f"整数への変換に失敗しました: {e}, 値: '{value}'")
+    
+    return None
+
+def convert_japanese_date(date_str):
+    """
+    日本語形式の日付（yyyy年mm月dd日）をISO形式（yyyy-mm-dd）に変換する
+    
+    Args:
+        date_str: 変換対象の日付文字列
+        
+    Returns:
+        str: 変換後の日付文字列（yyyy-mm-dd形式）、変換できない場合は元の文字列
+    """
+    if not isinstance(date_str, str):
+        return date_str
+        
+    # 日本語形式の日付を検出する正規表現パターン
+    pattern = r'(\d{4})年(\d{1,2})月(\d{1,2})日'
+    match = re.match(pattern, date_str.strip())
+    
+    if match:
+        year, month, day = match.groups()
+        # 桁数が足りない場合はゼロ埋め
+        month = month.zfill(2)
+        day = day.zfill(2)
+        return f"{year}-{month}-{day}"
+    
+    return date_str
+
 def process_all_date_columns(df, schema):
     """
-    データフレームの全ての日付カラムをBigQueryスキーマに合わせて適切に変換する
+    データフレームの日付カラムとタイムスタンプカラムをBigQuery互換の形式に変換
     
     Args:
         df: 処理対象のデータフレーム
         schema: BigQueryテーブルのスキーマ
-    
+        
     Returns:
-        pandas.DataFrame: 日付カラムが適切に変換されたデータフレーム
+        pandas.DataFrame: 日付が変換されたデータフレーム
     """
     for field in schema:
         if field.name in df.columns:
             if field.field_type == 'DATE':
                 logger.info(f"DATE型カラム '{field.name}' を変換します")
                 try:
-                    # まずpd.to_datetimeで変換
-                    df[field.name] = pd.to_datetime(df[field.name], errors='coerce')
-                    # DATEフォーマットに変換
-                    df[field.name] = df[field.name].dt.strftime('%Y-%m-%d')
+                    # ヘッダー行を除外
+                    mask = ~df[field.name].astype(str).str.contains('項目|日時|時間|date', case=False, na=False)
+                    # 文字列として処理して変換エラーを回避
+                    values = df.loc[mask, field.name]
+                    
+                    # 日本語形式の日付を前処理
+                    logger.info(f"日本語形式の日付を前処理します（yyyy年mm月dd日 → yyyy-mm-dd）")
+                    df.loc[mask, field.name] = values.apply(convert_japanese_date)
+                    
+                    # 前処理後の値を取得
+                    preprocessed_values = df.loc[mask, field.name]
+                    
+                    try:
+                        # 明示的にフォーマットを指定して変換
+                        dates = pd.to_datetime(preprocessed_values, errors='coerce', format='%Y-%m-%d')
+                        # フォーマット指定で変換できない場合は日付形式を推測
+                        mask_failed = pd.isna(dates)
+                        if mask_failed.any():
+                            logger.warning(f"日付形式 '%Y-%m-%d' での変換に失敗した行があります。汎用的な日付変換を試みます。")
+                            dates.loc[mask_failed] = pd.to_datetime(preprocessed_values.loc[mask_failed], errors='coerce')
+                        
+                        df.loc[mask, field.name] = dates.apply(lambda x: x.strftime('%Y-%m-%d') if pd.notnull(x) else None)
+                        
+                        # 変換結果のサンプルを表示
+                        converted_sample = df.loc[mask, field.name].head(5).tolist()
+                        logger.info(f"日付変換サンプル: {converted_sample}")
+                        
+                    except Exception as e:
+                        logger.warning(f"DATE型カラム '{field.name}' の変換に失敗: {e}")
                 except Exception as e:
                     logger.warning(f"DATE型カラム '{field.name}' の変換中にエラーが発生しました: {e}")
                     
             elif field.field_type == 'TIMESTAMP':
                 logger.info(f"TIMESTAMP型カラム '{field.name}' を変換します")
                 try:
-                    # まずpd.to_datetimeで変換
-                    df[field.name] = pd.to_datetime(df[field.name], errors='coerce')
-                    # TIMESTAMPフォーマットに変換
-                    df[field.name] = df[field.name].dt.strftime('%Y-%m-%d %H:%M:%S')
+                    # ヘッダー行を除外
+                    mask = ~df[field.name].astype(str).str.contains('項目|日時|時間|timestamp', case=False, na=False)
+                    # 文字列として処理して変換エラーを回避
+                    values = df.loc[mask, field.name]
+                    
+                    # 日本語形式の日付を前処理
+                    logger.info(f"TIMESTAMP型カラム '{field.name}' の日本語形式の日付を前処理します")
+                    df.loc[mask, field.name] = values.apply(convert_japanese_date)
+                    
+                    # 前処理後の値を取得
+                    preprocessed_values = df.loc[mask, field.name]
+                    
+                    try:
+                        # まず明示的なフォーマットで変換を試みる
+                        timestamps = pd.to_datetime(preprocessed_values, errors='coerce')
+                        df.loc[mask, field.name] = timestamps.apply(lambda x: x.strftime('%Y-%m-%d %H:%M:%S') if pd.notnull(x) else None)
+                        
+                        # 変換結果のサンプルを表示
+                        converted_sample = df.loc[mask, field.name].head(5).tolist()
+                        logger.info(f"タイムスタンプ変換サンプル: {converted_sample}")
+                    except Exception as e:
+                        logger.warning(f"TIMESTAMP型カラム '{field.name}' の変換に失敗: {e}")
                 except Exception as e:
                     logger.warning(f"TIMESTAMP型カラム '{field.name}' の変換中にエラーが発生しました: {e}")
+            
+            elif field.field_type == 'INTEGER':
+                logger.info(f"INTEGER型カラム '{field.name}' を変換します")
+                try:
+                    # 文字列変換前のサンプルデータを表示（デバッグ用）
+                    sample_data = df[field.name].head(3).tolist()
+                    logger.debug(f"サンプルデータ（変換前）: {sample_data}")
+                    
+                    # 数値を文字列として処理する場合のために、先に文字列に変換
+                    df[field.name] = df[field.name].astype(str)
+                    
+                    # ヘッダー行を除外してから変換
+                    mask = ~df[field.name].astype(str).str.contains('項目|ID|名|カラム|integer', case=False, na=False)
+                    
+                    # 特殊な数値フォーマットをチェック
+                    special_format_mask = df[field.name].astype(str).str.contains('number_value:', case=False, na=False)
+                    if special_format_mask.any():
+                        logger.warning(f"カラム '{field.name}' に特殊な数値フォーマットが含まれています。サンプル: {df.loc[special_format_mask, field.name].head(3).tolist()}")
+                    
+                    # 各行に対して数値変換を適用
+                    df.loc[mask, field.name] = df.loc[mask, field.name].apply(clean_integer_value)
+                    
+                    # 変換後のサンプルデータを表示（デバッグ用）
+                    converted_sample = df[field.name].head(3).tolist()
+                    logger.debug(f"サンプルデータ（変換後）: {converted_sample}")
+                    
+                except Exception as e:
+                    logger.warning(f"INTEGER型カラム '{field.name}' の変換中にエラーが発生しました: {e}")
+                    logger.warning(f"エラー詳細:", exc_info=True)
     
     return df
 
@@ -121,7 +325,12 @@ def upsert_data_to_bigquery(file_path, table_name, key_column='応募ID'):
         # ファイルの種類に応じてデータを読み込む
         if file_extension.lower() == '.csv':
             logger.info(f"CSVファイル '{file_path}' を読み込んでいます...")
-            df = pd.read_csv(file_path, encoding='cp932')
+            try:
+                # まずUTF-8で試す
+                df = pd.read_csv(file_path, encoding='utf-8')
+            except UnicodeDecodeError:
+                # UTF-8で失敗した場合はcp932（Shift-JIS）で試す
+                df = pd.read_csv(file_path, encoding='cp932')
             logger.info(f"CSVファイルを正常に読み込みました。行数: {len(df)}")
         elif file_extension.lower() == '.json':
             logger.info(f"JSONファイル '{file_path}' を読み込んでいます...")
@@ -137,12 +346,32 @@ def upsert_data_to_bigquery(file_path, table_name, key_column='応募ID'):
         # キーカラムの存在を確認
         if key_column not in df.columns:
             logger.error(f"キーカラム '{key_column}' がデータに存在しません")
-            return False
+            # データの最初の列をキーカラムとして代用
+            if len(df.columns) > 0:
+                logger.warning(f"最初のカラム '{df.columns[0]}' をキーカラムとして代用します")
+                df[key_column] = df[df.columns[0]]
+            else:
+                logger.error("データにカラムが存在しないため処理を中止します")
+                return False
             
         # キーカラムのNullチェック
         null_keys = df[df[key_column].isnull()].shape[0]
         if null_keys > 0:
             logger.warning(f"キーカラム '{key_column}' に {null_keys} 個のNULL値が存在します。これらは正しく更新されない可能性があります。")
+        
+        # キーカラムの重複チェック
+        duplicate_keys = df[df.duplicated(subset=[key_column], keep=False)]
+        if not duplicate_keys.empty:
+            duplicate_count = len(duplicate_keys)
+            logger.warning(f"キーカラム '{key_column}' に {duplicate_count} 個の重複があります。最新の行のみを保持します。")
+            
+            # 重複キーの値をログに出力
+            duplicate_key_values = duplicate_keys[key_column].unique()
+            logger.info(f"重複キーのサンプル: {duplicate_key_values[:5] if len(duplicate_key_values) > 5 else duplicate_key_values}")
+            
+            # 重複を排除（最後の行を保持）
+            df = df.drop_duplicates(subset=[key_column], keep='last')
+            logger.info(f"重複排除後の行数: {len(df)}")
         
         # カラム名を正規化
         df.columns = [normalize_column_name(col) for col in df.columns]

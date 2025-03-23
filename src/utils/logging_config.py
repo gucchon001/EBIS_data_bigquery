@@ -16,7 +16,7 @@ class LoggingConfig:
             return  # 再初期化を防止
 
         self.log_dir = Path("logs")
-        self.log_level = logging.INFO
+        self.log_level = logging.DEBUG
         self.log_format = "%(asctime)s - %(name)s - [%(levelname)s] - %(message)s"
 
         self.setup_logging()

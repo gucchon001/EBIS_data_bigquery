@@ -52,7 +52,7 @@ def convert_csv_to_json(csv_file, json_file=None, encoding='cp932', nrows=None, 
         
         # CSVファイルを読み込む
         logger.info(f"CSVファイル '{csv_file}' を読み込み中...")
-        read_args = {'encoding': encoding}
+        read_args = {'encoding': encoding, 'low_memory': False}
         if nrows:
             read_args['nrows'] = nrows
             logger.info(f"最初の {nrows} 行を読み込みます")
@@ -71,6 +71,9 @@ def convert_csv_to_json(csv_file, json_file=None, encoding='cp932', nrows=None, 
         
     except Exception as e:
         logger.error(f"変換中にエラーが発生しました: {e}")
+        # スタックトレースを出力
+        import traceback
+        logger.error(f"エラー詳細: {traceback.format_exc()}")
         return None
 
 def main():
