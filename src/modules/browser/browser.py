@@ -73,7 +73,7 @@ class Browser:
         if selectors_path and os.path.exists(selectors_path):
             self._load_selectors()
             
-        # セレクタのフォールバック設定
+        # セレクタのフォールバック設定　※設定していないとき用
         self._setup_fallback_selectors()
     
     def _setup_fallback_selectors(self):
