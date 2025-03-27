@@ -19,6 +19,7 @@ from pathlib import Path
 from datetime import datetime
 from src.utils.environment import EnvironmentUtils as env
 from src.modules.bigquery.csv_to_bigquery import process_csv_to_bigquery
+from src.modules.bigquery.column_mappings import get_cv_report_mappings
 
 # ロガーの設定
 logging.basicConfig(
@@ -196,7 +197,7 @@ def process_in_chunks(
             except:
                 # 最終手段: エラーが出ても固定のカラム名リストを使用
                 logger.warning("カラム名の取得に失敗したため、デフォルトのカラム名を使用します")
-                csv_columns = ["CV名", "CV時間", "ユーザーID", "ユーザー名", "売上金額", "属性1", "属性2", "属性3", "属性4", "属性5"]
+                csv_columns = ["CV名", "CV時間", "ユーザーID", "ユーザー名", "売上金額", "項目1", "項目2", "項目3", "項目4", "項目5"]
     except Exception as e:
         logger.error(f"CSVファイルのカラム名取得中にエラーが発生しました: {e}")
         return (0, 0)
@@ -207,12 +208,22 @@ def process_in_chunks(
         logger.info(f"変換前のカラム名: {csv_columns}")
         logger.info(f"適用するマッピング: {column_mapping}")
         
+        # マッピングの値からバッククオートを削除する関数
+        def remove_backticks(value):
+            if isinstance(value, str):
+                return value.replace('`', '')
+            return value
+        
+        # マッピングからバッククオートを一時的に削除したコピーを作成
+        clean_mapping = {k: remove_backticks(v) for k, v in column_mapping.items()}
+        
+        # カラムを変換
         columns = []
         for col in csv_columns:
             # マッピングが存在する場合は変換、それ以外はそのまま
-            if col in column_mapping:
-                columns.append(column_mapping[col])
-                logger.debug(f"カラム '{col}' を '{column_mapping[col]}' に変換しました")
+            if col in clean_mapping:
+                columns.append(clean_mapping[col])
+                logger.debug(f"カラム '{col}' を '{clean_mapping[col]}' に変換しました")
             else:
                 columns.append(col)
         logger.info(f"カラム名を変換しました: {column_mapping}")
@@ -390,17 +401,11 @@ def main():
     # 環境変数を読み込む
     env.load_env()
     
-    # 売上金額→応募IDの変換マッピング
-    column_mapping = {
-        '売上金額': '応募ID',
-        # 必要に応じて他のカラム変換も追加可能
-    }
-    
-    # 日付カラムの指定
-    date_columns = ['CV時間']
-    
-    # 整数カラムの指定
-    integer_columns = ['応募ID', '接触回数', '潜伏期間（秒）']
+    # カラムマッピングを取得
+    mappings = get_cv_report_mappings()
+    column_mapping = mappings['column_mapping']
+    date_columns = mappings['date_columns']
+    integer_columns = mappings['integer_columns']
     
     # チャンク処理の実行
     success, failed = process_in_chunks(
